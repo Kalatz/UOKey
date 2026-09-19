@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "UOKey",
+  "version": "0.2.0",
+  "description": "Use the keyboard instead of the mouse: press Ctrl+Shift+F, type the text of a link, button or field, then press Enter to click it.",
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "commands": {
+    "toggle-finder": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F"
+      },
+      "description": "Open or close the UOKey search bar"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "uokey@kalatz",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  }
+}
