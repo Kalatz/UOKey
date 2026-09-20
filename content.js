@@ -54,6 +54,12 @@
   const MAX_MATCHES = 300; // matches kept per search
   const FIXED = { clips: [], scrolls: false, fixed: true };
   const PLACEHOLDER = 'Find a link, button or field…';
+  // Typing this instead of text to find asks UOKey itself for something. No page text starts
+  // with it, so nothing that can be clicked is ever out of reach behind it.
+  const COMMAND_PREFIX = '!';
+  const COMMANDS = [
+    { name: 'help', summary: 'what UOKey does, and every key it uses', fill: fillHelp },
+  ];
 
   // Firefox lets extensions look inside closed shadow roots as well as open ones.
   const shadowOf = 'openOrClosedShadowRoot' in Element.prototype
@@ -68,13 +74,15 @@
     .hl.cur { background: rgba(255, 145, 0, 0.42); box-shadow: 0 0 0 2px #ff8a00; }
     .outline { border-radius: 6px;
       box-shadow: 0 0 0 2px #ff8a00, 0 0 0 6px rgba(255, 138, 0, 0.28); }
-    .bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
-      display: flex; align-items: center; gap: 12px; box-sizing: border-box;
-      max-width: calc(100vw - 32px); padding: 7px 14px 7px 7px; border-radius: 12px;
-      background: #1f2125; color: #e8e8ea; pointer-events: auto; white-space: nowrap;
-      font: 13px/1.3 system-ui, sans-serif;
+    .dock { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      max-width: calc(100vw - 32px); pointer-events: none; }
+    .dock.top { top: 18px; bottom: auto; flex-direction: column-reverse; }
+    .bar, .panel { box-sizing: border-box; max-width: 100%; border-radius: 12px;
+      background: #1f2125; color: #e8e8ea; pointer-events: auto;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08); }
-    .bar.top { top: 18px; bottom: auto; }
+    .bar { display: flex; align-items: center; gap: 12px; white-space: nowrap;
+      padding: 7px 14px 7px 7px; font: 13px/1.3 system-ui, sans-serif; }
     input { all: unset; box-sizing: border-box; width: 260px; max-width: 50vw; padding: 7px 10px;
       border-radius: 8px; background: #2c2f35; color: #fff; caret-color: #ffb13b;
       font: 14px/1.2 system-ui, sans-serif; box-shadow: inset 0 0 0 1px #4a4e57; }
@@ -87,9 +95,18 @@
     .action { display: flex; gap: 8px; min-width: 0; }
     .verb { color: #ffb13b; font-weight: 600; }
     .detail { max-width: 30ch; overflow: hidden; text-overflow: ellipsis; color: #9aa0a8; }
-    .keys { color: #7d828b; font-size: 12px; }
-    .keys b { color: #b9bdc4; font-weight: 600; }
-    @media (max-width: 700px) { .keys, .detail { display: none; } }
+    .hint { color: #7d828b; font-size: 12px; }
+    .hint b { color: #b9bdc4; font-weight: 600; }
+    input:not(:placeholder-shown) ~ .hint { display: none; } /* only while nothing is typed */
+    .panel { display: none; width: 38em; max-height: 60vh; overflow-y: auto; padding: 12px 15px;
+      font: 13px/1.45 system-ui, sans-serif; }
+    .panel h1 { margin: 0; color: #fff; font-size: 14px; }
+    .panel p { margin: 3px 0 11px; color: #9aa0a8; }
+    .panel dl { display: grid; grid-template-columns: auto 1fr; gap: 7px 16px; margin: 0; }
+    .panel dt { color: #ffb13b; font-weight: 600; white-space: nowrap; }
+    .panel dd { margin: 0; color: #c9cdd4; }
+    .panel .note { margin: 12px 0 0; color: #7d828b; font-size: 12px; }
+    @media (max-width: 700px) { .hint, .detail { display: none; } }
   `;
 
   let ui = null;
@@ -103,8 +120,10 @@
   let frame = 0;
   let searchTimer = 0;
   let swallowKeyUp = '';
+  let shortcutText = DEFAULT_SHORTCUT;
   let shortcut = parseShortcut(DEFAULT_SHORTCUT);
   let keyToggleTime = 0;
+  let commandMatches = [];
 
   // The keyboard shortcut is handled by background.js, which tells the page to open or close
   // the bar. That way it works wherever the focus is, and can be changed in Firefox's settings.
@@ -113,14 +132,20 @@
       // Unless the keys were already caught below, which happens first: one press, one toggle.
       if (performance.now() - keyToggleTime > SAME_PRESS) toggle();
     } else if (message && typeof message.shortcut === 'string') {
-      shortcut = parseShortcut(message.shortcut); // null: cleared, or keys we can't watch for
+      setShortcut(message.shortcut);
     }
   });
 
-  // Which keys those are, so the page can watch for them too (see matchesShortcut).
+  // Which keys those are, so the page can watch for them too (see matchesShortcut), and so
+  // !help can name them.
   browser.runtime.sendMessage('get-shortcut')
-    .then((text) => { if (typeof text === 'string') shortcut = parseShortcut(text); })
+    .then((text) => { if (typeof text === 'string') setShortcut(text); })
     .catch(() => { /* the background script didn't answer: keep the default */ });
+
+  function setShortcut(text) {
+    shortcutText = text;
+    shortcut = parseShortcut(text); // null: cleared, or keys the page can't watch for
+  }
 
   // Added before the page's own scripts run, so while the bar is open the page never sees the
   // keys typed into it.
@@ -218,9 +243,11 @@
       isOpen = true;
       document.documentElement.append(ui.host);
       ui.input.value = '';
-      ui.bar.classList.remove('top');
+      ui.dock.classList.remove('top');
       matches = [];
+      commandMatches = [];
       current = -1;
+      hidePanel();
       showStatus();
       render();
       ui.observer.observe(document.documentElement,
@@ -273,12 +300,6 @@
   }
 
   function createUI() {
-    const make = (tag, className, text) => {
-      const el = document.createElement(tag);
-      if (className) el.className = className;
-      if (text) el.textContent = text;
-      return el;
-    };
     // The page's CSS can't reach inside a closed shadow root, and the inline !important
     // styles keep it from hiding or moving the host element.
     const host = document.createElement('uokey-finder');
@@ -300,25 +321,33 @@
     const detail = make('span', 'detail');
     const action = make('span', 'action');
     action.append(verb, detail);
-    const keys = make('span', 'keys');
-    keys.append(make('b', '', 'Tab'), ' next · ', make('b', '', 'Esc'), ' close');
+    const hint = make('span', 'hint');
+    hint.append(make('b', '', `${COMMAND_PREFIX}help`), ' for the keys');
     const bar = make('div', 'bar');
-    bar.append(input, count, action, keys);
-    root.append(make('style', '', CSS), layer, bar);
+    bar.append(input, count, action, hint);
+    const panel = make('div', 'panel');
+    const dock = make('div', 'dock');
+    dock.append(panel, bar); // on top the dock turns over, so the panel is always the far side
+    root.append(make('style', '', CSS), layer, dock);
 
     input.addEventListener('input', () => {
       clearTimeout(searchTimer);
       searchTimer = 0;
+      const text = fold(input.value);
       // One letter matches half the page, which is slow; wait a moment for the next one.
-      if (fold(input.value).length === 1) searchTimer = setTimeout(runSearch, ONE_LETTER_DELAY);
-      else runSearch();
+      // Commands search nothing, so they answer straight away.
+      if (text.length === 1 && !text.startsWith(COMMAND_PREFIX)) {
+        searchTimer = setTimeout(runSearch, ONE_LETTER_DELAY);
+      } else {
+        runSearch();
+      }
     });
     input.addEventListener('blur', () => setTimeout(() => {
       // Focus moved elsewhere in the page (not just to another window): get out of the way.
       if (isOpen && document.hasFocus() && document.activeElement !== host) close(false);
     }));
-    // Clicking the bar itself must not take focus away from the input.
-    bar.addEventListener('mousedown', (e) => {
+    // Clicking the bar or the panel must not take focus away from the input.
+    dock.addEventListener('mousedown', (e) => {
       if (e.target !== input) e.preventDefault();
     });
     const observer = new MutationObserver((records) => {
@@ -327,14 +356,30 @@
       }
       scheduleRender();
     });
-    return { host, layer, outline, bar, input, count, action, verb, detail, observer, boxes: [] };
+    return {
+      host, layer, outline, dock, bar, panel, input, count, action, verb, detail, observer,
+      boxes: [],
+    };
   }
 
   function showStatus() {
-    const typed = ui.input.value.trim() !== '';
+    const text = ui.input.value.trim();
+    if (text.startsWith(COMMAND_PREFIX)) {
+      const command = commandMatches[0];
+      // Enter only has something left to do while the name is still half-typed.
+      const finishes = command && command.name !== text.slice(COMMAND_PREFIX.length).trim().toLowerCase();
+      ui.bar.classList.toggle('none', !command);
+      ui.count.textContent = '';
+      ui.action.style.display = finishes ? '' : 'none';
+      if (finishes) {
+        ui.verb.textContent = `↵ ${COMMAND_PREFIX}${command.name}`;
+        ui.detail.textContent = command.summary;
+      }
+      return;
+    }
     const m = matches[current];
-    ui.bar.classList.toggle('none', typed && !m);
-    ui.count.textContent = typed ? `${m ? current + 1 : 0}/${matches.length}` : '';
+    ui.bar.classList.toggle('none', text !== '' && !m);
+    ui.count.textContent = text ? `${m ? current + 1 : 0}/${matches.length}` : '';
     ui.action.style.display = m ? '' : 'none';
     if (m) {
       const [verb, detail] = describe(m.target);
@@ -385,7 +430,7 @@
     if (first) {
       const bar = ui.bar.getBoundingClientRect();
       const barTop = height - 18 - bar.height - 8;
-      ui.bar.classList.toggle('top',
+      ui.dock.classList.toggle('top',
         first.bottom > barTop && first.left < bar.right + 8 && first.right > bar.left - 8);
     }
   }
@@ -427,6 +472,10 @@
   // ---- Clicking -------------------------------------------------------------------------------
 
   function activateCurrent() {
+    if (ui.input.value.trim().startsWith(COMMAND_PREFIX)) {
+      runCommand();
+      return;
+    }
     if (searchTimer || (indexDirty && ui.input.value.trim())) runSearch(); // results are stale
     const m = matches[current];
     if (!m) return;
@@ -493,11 +542,86 @@
     return el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true';
   }
 
+  // ---- Commands -------------------------------------------------------------------------------
+
+  // The bar holds a command instead of text to find: show what it does, or what could be meant.
+  function showCommands(typed) {
+    matches = [];
+    current = -1;
+    const name = typed.slice(COMMAND_PREFIX.length).trim().toLowerCase();
+    commandMatches = COMMANDS.filter((c) => c.name.startsWith(name));
+    const exact = COMMANDS.find((c) => c.name === name);
+    showPanel(exact ? exact.fill : (panel) => fillCommandList(panel, name));
+    showStatus();
+    render();
+  }
+
+  // Enter on a command: finish typing its name, which shows what it has to say.
+  function runCommand() {
+    const command = commandMatches[0];
+    if (!command) return;
+    ui.input.value = COMMAND_PREFIX + command.name;
+    runSearch();
+  }
+
+  function showPanel(fill) {
+    ui.panel.textContent = '';
+    fill(ui.panel);
+    ui.panel.style.display = 'block';
+    ui.panel.scrollTop = 0;
+  }
+
+  function hidePanel() {
+    if (!ui.panel.style.display) return;
+    ui.panel.style.display = '';
+    ui.panel.textContent = '';
+  }
+
+  function fillCommandList(panel, name) {
+    panel.append(make('h1', '', commandMatches.length
+      ? 'Commands'
+      : `There is no ${COMMAND_PREFIX}${name} command`));
+    panel.append(rows(COMMANDS.map((c) => [COMMAND_PREFIX + c.name, c.summary])));
+  }
+
+  function fillHelp(panel) {
+    panel.append(
+      make('h1', '', 'UOKey'),
+      make('p', '', 'Click links, buttons and fields with the keyboard instead of the mouse. '
+        + 'Type part of what you can read on one: capitals, accents and the keyboard you type '
+        + 'in make no difference.'),
+      rows([
+        [shortcutText || 'No shortcut set', 'open this bar, or close it again'],
+        ['Enter', 'click the orange match, or start typing in it when it is a field'],
+        ['Tab  ↓', 'next match'],
+        ['Shift+Tab  ↑', 'previous match'],
+        ['Esc', 'close the bar and put the cursor back where it was'],
+        [`${COMMAND_PREFIX}help`, 'this page'],
+      ]),
+      make('p', 'note', 'It finds the text you can see, and also the placeholder, label, tooltip '
+        + 'or picture description of things that have no text of their own. '
+        + 'To use other keys for the bar, open about:addons → ⚙ → Manage Extension Shortcuts.'),
+    );
+  }
+
+  function rows(pairs) {
+    const list = make('dl');
+    for (const [keys, what] of pairs) list.append(make('dt', '', keys), make('dd', '', what));
+    return list;
+  }
+
   // ---- Searching ------------------------------------------------------------------------------
 
   function runSearch() {
     clearTimeout(searchTimer);
     searchTimer = 0;
+    const typed = ui.input.value.trim();
+    if (typed.startsWith(COMMAND_PREFIX)) {
+      showCommands(typed);
+      return;
+    }
+    hidePanel();
+    commandMatches = [];
     const query = fold(ui.input.value);
     const previous = matches[current];
     matches = [];
@@ -849,6 +973,13 @@
   }
 
   // ---- DOM helpers ----------------------------------------------------------------------------
+
+  function make(tag, className, text) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text) el.textContent = text;
+    return el;
+  }
 
   function related(a, b) {
     return contains(b, a) || contains(a, b); // a inside b is the common case, so check it first

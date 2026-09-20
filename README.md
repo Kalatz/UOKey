@@ -14,6 +14,12 @@ match is a text field, Enter puts the cursor in it instead so you can type.
 | Tab or ↓ | next match |
 | Shift+Tab or ↑ | previous match |
 | Esc | close the bar and go back to where you were |
+| !help | show all of this in the bar itself |
+
+Anything typed starting with `!` is a command for UOKey instead of text to look for on the page, so
+`!help` opens a panel above the bar with what UOKey does and every key it uses, the shortcut named
+as it is actually set. Typing `!` on its own lists the commands there are. The bar itself stays
+quiet: while it is empty it only mentions `!help`, and once you start typing, that goes too.
 
 It searches the visible text of links, buttons and anything with a pointer (hand) cursor. It also
 searches field placeholders, labels, tooltips and image descriptions (alt text). Capitals, accents
