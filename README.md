@@ -16,8 +16,15 @@ match is a text field, Enter puts the cursor in it instead so you can type.
 | Esc | close the bar and go back to where you were |
 
 It searches the visible text of links, buttons and anything with a pointer (hand) cursor. It also
-searches field placeholders, labels, tooltips and image descriptions (alt text). Case and accents
-don't matter, so `αναζητηση` finds `Αναζήτηση`.
+searches field placeholders, labels, tooltips and image descriptions (alt text). Capitals, accents
+and final sigma don't matter, so `αναζητηση`, `ΑΝΑΖΗΤΗΣΗ` and `Αναζήτηση` all find each other, and
+`οδος` finds `Οδός`.
+
+The shortcut works whatever your keyboard is set to type. Firefox only recognises Ctrl+Shift+F when
+the keyboard makes a Latin `f`, so on a Greek layout, where those keys type `Φ`, UOKey watches for
+them itself, going by where the keys are rather than by what they type. Caps Lock makes no
+difference either. If you change the shortcut in `about:addons`, the new one is watched for in the
+same way.
 
 If Firefox's address bar has the keyboard when you press the shortcut, the bar says **Press F6 to
 type here**: Firefox doesn't let a page take the keyboard from its own toolbar, and F6 moves it to
@@ -46,5 +53,6 @@ it. Signing is free and the extension can stay private:
 
 - Firefox doesn't let extensions run on its own pages: `about:` pages, addons.mozilla.org, the PDF
   viewer and Reader View.
-- Links inside embedded frames (iframes) aren't searched.
+- Links inside embedded frames (iframes) aren't searched. On a non-Latin layout the shortcut also
+  needs the cursor to be outside an embedded frame, because that is where UOKey can watch for it.
 - Text that is part of a picture can only be found if the picture has alt text.

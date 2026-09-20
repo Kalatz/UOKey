@@ -39,6 +39,15 @@
     opacityProperty: true, visibilityProperty: true, checkOpacity: true, checkVisibilityCSS: true,
   };
   const IGNORABLE = /[\p{M}\p{Cf}]/gu; // accents, soft hyphens, zero-width and direction marks
+  const DEFAULT_SHORTCUT = 'Ctrl+Shift+F';
+  const SAME_PRESS = 1000; // ms; Firefox's own shortcut arriving after we handled the same keys
+  // Where the keys Firefox lets a shortcut use sit on the keyboard, for the ones that aren't
+  // letters or digits.
+  const KEY_CODES = {
+    Comma: 'Comma', Period: 'Period', Space: 'Space', Home: 'Home', End: 'End',
+    PageUp: 'PageUp', PageDown: 'PageDown', Insert: 'Insert', Delete: 'Delete',
+    Up: 'ArrowUp', Down: 'ArrowDown', Left: 'ArrowLeft', Right: 'ArrowRight',
+  };
   const ONE_LETTER_DELAY = 200; // ms to wait for a second letter before searching for just one
   const REINDEX_AFTER = 1000; // ms; while typing, re-read a page that keeps changing at most this often
   const MAX_SCAN = 3000; // text occurrences examined per search
@@ -94,14 +103,24 @@
   let frame = 0;
   let searchTimer = 0;
   let swallowKeyUp = '';
+  let shortcut = parseShortcut(DEFAULT_SHORTCUT);
+  let keyToggleTime = 0;
 
   // The keyboard shortcut is handled by background.js, which tells the page to open or close
   // the bar. That way it works wherever the focus is, and can be changed in Firefox's settings.
   browser.runtime.onMessage.addListener((message) => {
-    if (message !== 'toggle-finder') return;
-    if (isOpen) close(true);
-    else open(deepActiveElement());
+    if (message === 'toggle-finder') {
+      // Unless the keys were already caught below, which happens first: one press, one toggle.
+      if (performance.now() - keyToggleTime > SAME_PRESS) toggle();
+    } else if (message && typeof message.shortcut === 'string') {
+      shortcut = parseShortcut(message.shortcut); // null: cleared, or keys we can't watch for
+    }
   });
+
+  // Which keys those are, so the page can watch for them too (see matchesShortcut).
+  browser.runtime.sendMessage('get-shortcut')
+    .then((text) => { if (typeof text === 'string') shortcut = parseShortcut(text); })
+    .catch(() => { /* the background script didn't answer: keep the default */ });
 
   // Added before the page's own scripts run, so while the bar is open the page never sees the
   // keys typed into it.
@@ -113,6 +132,16 @@
   // ---- Keyboard -------------------------------------------------------------------------------
 
   function onKeyDown(e) {
+    if (e.isTrusted && matchesShortcut(e)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      swallowKeyUp = e.code;
+      if (!e.repeat) {
+        keyToggleTime = performance.now();
+        toggle();
+      }
+      return;
+    }
     if (!isOpen || e.target !== ui.host) return;
     e.stopImmediatePropagation(); // keep the page's own keyboard shortcuts out of it
     if (!e.isTrusted || e.isComposing) return;
@@ -140,6 +169,43 @@
 
   function stopIfOurs(e) {
     if (isOpen && e.target === ui.host) e.stopImmediatePropagation();
+  }
+
+  function toggle() {
+    if (isOpen) close(true);
+    else open(deepActiveElement());
+  }
+
+  // "Ctrl+Shift+F" → what a keydown for it looks like. `key` is the letter it types on a Latin
+  // keyboard; `code` is where that key sits, whatever the keyboard types there.
+  function parseShortcut(text) {
+    const parts = String(text).split('+').filter(Boolean);
+    const name = parts.pop() || '';
+    const has = (modifier) => parts.includes(modifier);
+    const key = /^[A-Za-z0-9]$/.test(name) ? name.toLowerCase() : '';
+    const code = key ? (key >= '0' && key <= '9' ? `Digit${key}` : `Key${key.toUpperCase()}`)
+      : /^F([1-9]|1[0-2])$/.test(name) ? name
+        : KEY_CODES[name] || '';
+    if (!key && !code) return null; // a media key: Firefox handles those itself
+    return {
+      ctrl: has('Ctrl') || has('MacCtrl'),
+      alt: has('Alt'),
+      shift: has('Shift'),
+      meta: has('Command'),
+      key,
+      code,
+    };
+  }
+
+  // Firefox only fires the shortcut when the keyboard types the letter it is written with, so
+  // with a Greek layout Ctrl+Shift+F types Φ and nothing happens. Catch the keys here as well:
+  // by the letter while the keyboard types Latin (so Caps Lock and Shift don't matter), and by
+  // the key's place on the keyboard while it types anything else.
+  function matchesShortcut(e) {
+    if (!shortcut || e.ctrlKey !== shortcut.ctrl || e.altKey !== shortcut.alt
+        || e.shiftKey !== shortcut.shift || e.metaKey !== shortcut.meta) return false;
+    if (shortcut.key && /^[a-z0-9]$/i.test(e.key)) return e.key.toLowerCase() === shortcut.key;
+    return !!shortcut.code && e.code === shortcut.code;
   }
 
   // ---- Bar and highlights ---------------------------------------------------------------------

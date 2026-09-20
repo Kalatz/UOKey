@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UOKey",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Use the keyboard instead of the mouse: press Ctrl+Shift+F, type the text of a link, button or field, then press Enter to click it.",
   "icons": {
     "48": "icons/icon.svg",
