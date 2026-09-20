@@ -122,7 +122,7 @@
   let swallowKeyUp = '';
   let shortcutText = DEFAULT_SHORTCUT;
   let shortcut = parseShortcut(DEFAULT_SHORTCUT);
-  let keyToggleTime = 0;
+  let keyToggleTime = -Infinity; // no keys of ours caught yet, however new the page is
   let commandMatches = [];
 
   // The keyboard shortcut is handled by background.js, which tells the page to open or close
