@@ -78,11 +78,16 @@
       display: flex; flex-direction: column; align-items: center; gap: 8px;
       max-width: calc(100vw - 32px); pointer-events: none; }
     .dock.top { top: 18px; bottom: auto; flex-direction: column-reverse; }
-    .bar, .panel { box-sizing: border-box; max-width: 100%; border-radius: 12px;
+    .bar, .panel, .extras { box-sizing: border-box; max-width: 100%; border-radius: 12px;
       background: #1f2125; color: #e8e8ea; pointer-events: auto;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08); }
-    .bar { display: flex; align-items: center; gap: 12px; white-space: nowrap;
-      padding: 7px 14px 7px 7px; font: 13px/1.3 system-ui, sans-serif; }
+    .row { position: relative; display: flex; }
+    .bar { display: flex; padding: 7px; font: 13px/1.3 system-ui, sans-serif; }
+    /* Beside the typing box, so that it stays where it is however much there is to say. */
+    .extras { display: none; position: absolute; left: 100%; top: 0; bottom: 0; margin-left: 8px;
+      align-items: center; gap: 10px; padding: 0 13px; overflow: hidden; white-space: nowrap;
+      max-width: calc(50vw - 160px); font: 13px/1.3 system-ui, sans-serif; }
+    .extras.on { display: flex; }
     input { all: unset; box-sizing: border-box; width: 260px; max-width: 50vw; padding: 7px 10px;
       border-radius: 8px; background: #2c2f35; color: #fff; caret-color: #ffb13b;
       font: 14px/1.2 system-ui, sans-serif; box-shadow: inset 0 0 0 1px #4a4e57; }
@@ -95,9 +100,6 @@
     .action { display: flex; gap: 8px; min-width: 0; }
     .verb { color: #ffb13b; font-weight: 600; }
     .detail { max-width: 30ch; overflow: hidden; text-overflow: ellipsis; color: #9aa0a8; }
-    .hint { color: #7d828b; font-size: 12px; }
-    .hint b { color: #b9bdc4; font-weight: 600; }
-    input:not(:placeholder-shown) ~ .hint { display: none; } /* only while nothing is typed */
     .panel { display: none; width: 38em; max-height: 60vh; overflow-y: auto; padding: 12px 15px;
       font: 13px/1.45 system-ui, sans-serif; }
     .panel h1 { margin: 0; color: #fff; font-size: 14px; }
@@ -106,7 +108,7 @@
     .panel dt { color: #ffb13b; font-weight: 600; white-space: nowrap; }
     .panel dd { margin: 0; color: #c9cdd4; }
     .panel .note { margin: 12px 0 0; color: #7d828b; font-size: 12px; }
-    @media (max-width: 700px) { .hint, .detail { display: none; } }
+    @media (max-width: 700px) { .detail { display: none; } }
   `;
 
   let ui = null;
@@ -321,13 +323,18 @@
     const detail = make('span', 'detail');
     const action = make('span', 'action');
     action.append(verb, detail);
-    const hint = make('span', 'hint');
-    hint.append(make('b', '', `${COMMAND_PREFIX}help`), ' for the keys');
+    const extras = make('div', 'extras');
+    extras.append(count, action);
     const bar = make('div', 'bar');
-    bar.append(input, count, action, hint);
+    bar.append(input);
+    // The bar holds nothing but the box to type in, and the row holds nothing but the bar, so
+    // what is centred on the screen is the typing box itself. The count and what Enter will do
+    // hang off its side without moving it.
+    const row = make('div', 'row');
+    row.append(bar, extras);
     const panel = make('div', 'panel');
     const dock = make('div', 'dock');
-    dock.append(panel, bar); // on top the dock turns over, so the panel is always the far side
+    dock.append(panel, row); // on top the dock turns over, so the panel is always the far side
     root.append(make('style', '', CSS), layer, dock);
 
     input.addEventListener('input', () => {
@@ -357,8 +364,8 @@
       scheduleRender();
     });
     return {
-      host, layer, outline, dock, bar, panel, input, count, action, verb, detail, observer,
-      boxes: [],
+      host, layer, outline, dock, bar, panel, input, count, extras, action, verb, detail,
+      observer, boxes: [],
     };
   }
 
@@ -375,6 +382,7 @@
         ui.verb.textContent = `↵ ${COMMAND_PREFIX}${command.name}`;
         ui.detail.textContent = command.summary;
       }
+      ui.extras.classList.toggle('on', !!finishes);
       return;
     }
     const m = matches[current];
@@ -386,6 +394,8 @@
       ui.verb.textContent = `↵ ${verb}`;
       ui.detail.textContent = detail;
     }
+    // Nothing typed yet: the bar is only the box to type in.
+    ui.extras.classList.toggle('on', text !== '');
   }
 
   // What Enter will do, for the bar.

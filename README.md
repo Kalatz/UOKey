@@ -18,8 +18,11 @@ match is a text field, Enter puts the cursor in it instead so you can type.
 
 Anything typed starting with `!` is a command for UOKey instead of text to look for on the page, so
 `!help` opens a panel above the bar with what UOKey does and every key it uses, the shortcut named
-as it is actually set. Typing `!` on its own lists the commands there are. The bar itself stays
-quiet: while it is empty it only mentions `!help`, and once you start typing, that goes too.
+as it is actually set. Typing `!` on its own lists the commands there are.
+
+The bar keeps out of the way: it opens as nothing but the box to type in, centred at the bottom of
+the page, and says nothing about commands or keys until you ask. The match count and what Enter
+will do appear beside the box once you start typing, without ever moving it off centre.
 
 It searches the visible text of links, buttons and anything with a pointer (hand) cursor. It also
 searches field placeholders, labels, tooltips and image descriptions (alt text). Capitals, accents
