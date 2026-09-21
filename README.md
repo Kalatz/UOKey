@@ -204,21 +204,32 @@ the page.
 To use a different shortcut, open `about:addons`, click the ⚙ (gear) button, choose **Manage
 Extension Shortcuts** and change it next to UOKey.
 
+## Installing it to keep
+
+Firefox throws away a temporary add-on when it restarts, so to have UOKey there every morning it
+has to be signed. Signing is free, and it does not mean publishing: **On your own** gives you a
+signed file to install yourself, and the add-on is never listed, never searchable, and never
+shown to anybody else.
+
+1. Run `./build.sh`, which puts `uokey-<version>.zip` in this folder.
+2. Sign in at <https://addons.mozilla.org/developers/addon/submit/distribution> with a Firefox
+   account, and choose **On your own**.
+3. Upload the zip. It is checked there and then; signing takes a minute or two.
+4. Download the signed `.xpi` and open it in Firefox. Firefox asks to add it, lists what it
+   wants to be allowed, and keeps it from then on.
+
+To put a new version out, raise `version` in `manifest.json` — Firefox will not install a
+version it already has, or an older one — then build, upload and install it again.
+
 ## Installing it for testing
 
 1. Open `about:debugging#/runtime/this-firefox` in Firefox.
 2. Click **Load Temporary Add-on…** and pick `manifest.json` in this folder.
 3. Reload the tabs you want to use it in.
 
-After you edit the code, click **Reload** next to UOKey on that page, then reload the tab.
-
-Firefox removes temporary add-ons when it restarts. To keep UOKey installed, Mozilla has to sign
-it. Signing is free and the extension can stay private:
-
-1. Zip the contents of this folder, with `manifest.json` at the top level of the zip.
-2. Upload the zip at <https://addons.mozilla.org/developers/addon/submit/distribution> and choose
-   **On your own**.
-3. Download the signed `.xpi` file and open it in Firefox.
+After you edit the code, click **Reload** next to UOKey on that page, then reload the tab. This
+is the one to use while working on it: it needs no signing and takes a second, and it is gone
+again when Firefox closes.
 
 ## Limitations
 
