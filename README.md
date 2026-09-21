@@ -32,6 +32,15 @@ opens the one that is highlighted, and Esc goes back to searching the page.
 It is the same typing you already use for links and buttons, so there is nothing new to learn,
 and it covers every bookmark you have rather than only the ones on the toolbar.
 
+They are listed in the folders you keep them in, so a long list reads like your bookmark menu
+rather than one run of names. Folder names count as something to type, too: `work` finds
+everything in a Work folder, whatever the bookmarks in it are called.
+
+Each one carries a small square with the site's first letter, coloured from the address, so two
+bookmarks on the same site look alike at a glance. They are not the sites' real favicons:
+Firefox keeps those where an extension can't read them, and the only other way to get one is to
+ask each bookmarked site for it, which would tell all of them what you have kept.
+
 ## Hints: !short
 
 Type `!short` and every link, button and field on the page gets a small key above it. Press `%`

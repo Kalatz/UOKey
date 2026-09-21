@@ -136,8 +136,17 @@
     .slabel { color: #c9cdd4; max-width: 16ch; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
     .more { color: #7d828b; }
+    .panel h2 { margin: 13px 0 5px; font: 600 11px/1.3 system-ui, sans-serif;
+      text-transform: uppercase; letter-spacing: 0.07em; color: #7d828b; }
+    .panel h2:first-of-type { margin-top: 3px; }
     .marks { display: flex; flex-direction: column; gap: 1px; }
-    .markrow { display: flex; gap: 10px; padding: 4px 7px; border-radius: 6px; min-width: 0; }
+    .markrow { display: flex; align-items: center; gap: 9px; padding: 4px 7px;
+      border-radius: 6px; min-width: 0; }
+    /* A letter on a colour of the site's own: no favicon can be had without asking every
+       bookmarked site for one, which would tell them all what you have kept. */
+    .favicon { flex: none; width: 17px; height: 17px; border-radius: 4px; color: #17181b;
+      display: flex; align-items: center; justify-content: center;
+      font: 700 10px/1 system-ui, sans-serif; }
     .markrow.cur { background: rgba(255, 138, 0, 0.18); box-shadow: inset 0 0 0 1px #ff8a00; }
     .marktitle { flex: none; max-width: 24ch; overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; color: #e8e8ea; }
@@ -988,7 +997,9 @@
           marks = found.map((mark) => ({
             title: mark.title,
             url: mark.url,
-            folded: fold(`${mark.title} ${mark.url}`), // title or address, either will find it
+            folder: mark.folder || '',
+            // Title, address or the folder it is kept in: any of the three will find it.
+            folded: fold(`${mark.title} ${mark.url} ${mark.folder || ''}`),
           }));
         }
         return marks;
@@ -1024,13 +1035,50 @@
     panel.append(make('h1', '', markMatches.length
       ? `Bookmarks (${markMatches.length} of ${marks.length})`
       : 'No bookmark matches that'));
-    const list = make('div', 'marks');
+    // Kept in the folders they live in, in the order they first turn up, so a long list reads
+    // like the bookmark menu rather than one run of names.
+    const folders = new Map();
     markMatches.forEach((mark, i) => {
-      const row = make('div', `markrow${i === markCurrent ? ' cur' : ''}`);
-      row.append(make('span', 'marktitle', mark.title), make('span', 'markurl', shortUrl(mark.url)));
-      list.append(row);
+      const where = mark.folder || 'Bookmarks';
+      if (!folders.has(where)) folders.set(where, []);
+      folders.get(where).push([mark, i]);
     });
-    panel.append(list);
+    for (const [where, inIt] of folders) {
+      panel.append(make('h2', '', where));
+      const list = make('div', 'marks');
+      for (const [mark, i] of inIt) list.append(markRow(mark, i));
+      panel.append(list);
+    }
+  }
+
+  function markRow(mark, i) {
+    const row = make('div', `markrow${i === markCurrent ? ' cur' : ''}`);
+    const icon = make('span', 'favicon', initialOf(mark));
+    icon.style.background = colourOf(mark.url);
+    row.append(icon, make('span', 'marktitle', mark.title),
+      make('span', 'markurl', shortUrl(mark.url)));
+    return row;
+  }
+
+  function hostOf(url) {
+    try {
+      return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+      return '';
+    }
+  }
+
+  // The site's first letter, not the bookmark's: two bookmarks on one site then look alike.
+  function initialOf(mark) {
+    return (hostOf(mark.url) || mark.title || '?').charAt(0).toUpperCase();
+  }
+
+  // The same site always gets the same colour, so they are told apart by more than the letter.
+  function colourOf(url) {
+    const host = hostOf(url);
+    let hue = 0;
+    for (let i = 0; i < host.length; i++) hue = (hue * 31 + host.charCodeAt(i)) % 360;
+    return `hsl(${hue}, 60%, 62%)`;
   }
 
   function stepMark(direction) {

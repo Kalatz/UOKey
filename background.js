@@ -77,14 +77,32 @@ browser.commands.onChanged?.addListener(async ({ name }) => {
 
 // ---- What !marks needs ----------------------------------------------------------------------
 
-// Every bookmark there is, for !marks. Folders have no url; a place: query isn't a page.
+// Every bookmark there is, for !marks, each with the folder it sits in so the panel can group
+// them the way they are kept. Walked rather than searched, because a flat search knows only a
+// parentId and the folder's name is what is worth showing.
 async function allBookmarks() {
   try {
-    const found = await browser.bookmarks.search({});
-    return found
-      .filter((mark) => mark.url && NAVIGABLE.test(mark.url))
-      .map((mark) => ({ title: mark.title || mark.url, url: mark.url }));
+    const [root] = await browser.bookmarks.getTree();
+    const found = [];
+    gatherMarks(root, [], found);
+    return found;
   } catch {
     return [];
+  }
+}
+
+function gatherMarks(node, path, found) {
+  for (const child of node.children || []) {
+    if (child.children) {
+      // The roots (Bookmarks Toolbar, Bookmarks Menu, …) are folders like any other; the one
+      // above them has no name, and nameless folders add nothing to a path.
+      gatherMarks(child, child.title ? [...path, child.title] : path, found);
+    } else if (child.url && NAVIGABLE.test(child.url)) {
+      found.push({
+        title: child.title || child.url,
+        url: child.url,
+        folder: path.join(' / '),
+      });
+    }
   }
 }
