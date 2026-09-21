@@ -160,7 +160,8 @@ function gatherMarks(node, path, found) {
       gatherMarks(child, child.title ? [...path, child.title] : path, found);
     } else if (child.url && NAVIGABLE.test(child.url)) {
       found.push({
-        title: child.title || child.url,
+        // Left as it is, even when empty: the panel knows what to show in place of a blank.
+        title: child.title || '',
         url: child.url,
         folder: path.join(' / '),
       });

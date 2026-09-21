@@ -56,9 +56,15 @@ rather than one run of names. Folder names count as something to type, too: `wor
 everything in a Work folder, whatever the bookmarks in it are called.
 
 Your **bookmarks toolbar comes first and open**, since it is the one you arranged to be at
-hand. Every other folder is shut, shown as its name and how many are in it; move to one and press
-Enter to open it, and Enter again to shut it. That keeps the whole thing to about a screenful
-however many bookmarks you have.
+hand. Every other folder is shut, shown as its name and how many are in it. A folder is a row
+like any other: move to it and press Enter to open it, Enter again to shut it. That goes for the
+toolbar too, so you can shut that as well and start from nothing. It keeps the whole thing to
+about a screenful however many bookmarks you have.
+
+Plenty of toolbar bookmarks are saved with no name at all, so that the toolbar shows only their
+icon. A blank is no use in a list, so those are shown as the site they are on followed by the
+rest of the address — `127.0.0.1` then `/page3.html` — instead of a blank beside a repeat of the
+same site.
 
 Each folder's bookmarks are laid out side by side rather than in one long column, which halves
 how far there is to scroll, and the address beside each name is only the site it is on:

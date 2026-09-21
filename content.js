@@ -197,7 +197,8 @@
   let listMatches = [];
   let listCurrent = -1;
   const listCache = new Map(); // bookmarks are asked for once a page; tabs every time
-  const openFolders = new Set(); // folders the user has opened, kept while the page lasts
+  const openFolders = new Set(); // shut folders the user has opened, kept while the page lasts
+  const shutFolders = new Set(); // and the ones that start open and have been shut
 
   // The keyboard shortcut is handled by background.js, which tells the page to open or close
   // the bar. That way it works wherever the focus is, and can be changed in Firefox's settings.
@@ -238,9 +239,12 @@
   browser.runtime.sendMessage('bar-state')
     .then((on) => {
       if (on !== true || isOpen) return;
-      if (document.body) open(deepActiveElement());
-      else addEventListener('DOMContentLoaded',
-        () => { if (!isOpen) open(deepActiveElement()); }, { once: true });
+      // Quietly: this page is doing as the switch says, not throwing it. Saying so back would
+      // set the switch on again, and a page that was still loading when you turned it off
+      // would turn it back on for every tab.
+      const catchUp = () => { if (!isOpen) quietly(() => open(deepActiveElement())); };
+      if (document.body) catchUp();
+      else addEventListener('DOMContentLoaded', catchUp, { once: true });
     })
     .catch(() => { /* no answer: the bar stays shut until it is asked for */ });
 
@@ -514,7 +518,7 @@
         ui.detail.textContent = `${entry.count} in ${entry.name}`;
       } else if (entry) {
         ui.verb.textContent = list.verb;
-        ui.detail.textContent = siteOf(entry.item.url);
+        ui.detail.textContent = addressFor(entry.item);
       }
       ui.extras.classList.add('on');
       return;
@@ -1209,11 +1213,27 @@
     groups.sort(([a], [b]) => (onToolbar(a) === onToolbar(b)
       ? a.localeCompare(b)
       : (onToolbar(a) ? -1 : 1)));
-    return headed(groups, (name) => onToolbar(name) || openFolders.has(name), false);
+    return headed(groups, folderOpen, false);
   }
 
   function onToolbar(name) {
     return /^bookmarks toolbar/i.test(name);
+  }
+
+  // The toolbar starts open and everything else starts shut, and either can be changed, so one
+  // set holds what has been opened and the other what has been shut.
+  function folderOpen(name) {
+    return onToolbar(name) ? !shutFolders.has(name) : openFolders.has(name);
+  }
+
+  function turnFolder(name) {
+    if (folderOpen(name)) {
+      if (onToolbar(name)) shutFolders.add(name);
+      else openFolders.delete(name);
+      return;
+    }
+    if (onToolbar(name)) shutFolders.delete(name);
+    else openFolders.add(name);
   }
 
   function showList() {
@@ -1257,8 +1277,8 @@
 
   function listRow(item, i) {
     const row = make('div', `markrow${i === listCurrent ? ' cur' : ''}`);
-    row.append(iconFor(item), make('span', 'marktitle', item.title),
-      make('span', 'markurl', siteOf(item.url)));
+    row.append(iconFor(item), make('span', 'marktitle', nameFor(item)),
+      make('span', 'markurl', addressFor(item)));
     const note = list.note(item);
     if (note) row.append(make('span', 'here', note));
     return row;
@@ -1303,8 +1323,7 @@
     const entry = listMatches[listCurrent];
     if (!entry) return;
     if (entry.kind === 'head') {
-      if (openFolders.has(entry.name)) openFolders.delete(entry.name);
-      else openFolders.add(entry.name);
+      turnFolder(entry.name);
       rebuildList();
       // Stay on the folder just opened rather than jumping back to the top of the list.
       const back = listMatches.findIndex((e) => e.kind === 'head' && e.name === entry.name);
@@ -1347,6 +1366,27 @@
   // host of its own (a file, say) keeps what it had, minus the parts nobody reads.
   function siteOf(url) {
     return hostOf(url) || url.replace(/^[a-z]+:\/\//i, '').replace(/\/$/, '');
+  }
+
+  // Plenty of toolbar bookmarks are saved with no name at all, so that the toolbar shows only
+  // their icon. A blank is no use here, so the site's name stands in for it and the rest of the
+  // address follows, instead of a blank beside a repeat of the same site.
+  function nameFor(item) {
+    return item.title || siteOf(item.url);
+  }
+
+  function addressFor(item) {
+    if (item.title) return siteOf(item.url);
+    return restOf(item.url) || siteOf(item.url);
+  }
+
+  function restOf(url) {
+    try {
+      const at = new URL(url);
+      return (at.pathname + at.search).replace(/\/$/, '');
+    } catch {
+      return '';
+    }
   }
 
   // ---- Searching ------------------------------------------------------------------------------
