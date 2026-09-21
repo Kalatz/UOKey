@@ -126,7 +126,7 @@
     .action { display: flex; gap: 8px; min-width: 0; }
     .verb { color: #ffb13b; font-weight: 600; }
     .detail { max-width: 30ch; overflow: hidden; text-overflow: ellipsis; color: #9aa0a8; }
-    .panel { display: none; width: 38em; max-height: 60vh; overflow-y: auto; padding: 12px 15px;
+    .panel { display: none; width: 44em; max-height: 60vh; overflow-y: auto; padding: 12px 15px;
       font: 13px/1.45 system-ui, sans-serif; }
     .panel h1 { margin: 0; color: #fff; font-size: 14px; }
     .panel p { margin: 3px 0 11px; color: #9aa0a8; }
@@ -139,8 +139,10 @@
     .panel h2 { margin: 13px 0 5px; font: 600 11px/1.3 system-ui, sans-serif;
       text-transform: uppercase; letter-spacing: 0.07em; color: #7d828b; }
     .panel h2:first-of-type { margin-top: 3px; }
-    .marks { display: flex; flex-direction: column; gap: 1px; }
-    .markrow { display: flex; align-items: center; gap: 9px; padding: 4px 7px;
+    /* Side by side rather than one long column, so a lot of bookmarks is half the scrolling. */
+    .marks { display: grid; grid-template-columns: repeat(auto-fill, minmax(15em, 1fr));
+      gap: 1px 10px; }
+    .markrow { display: flex; align-items: center; gap: 7px; padding: 3px 6px;
       border-radius: 6px; min-width: 0; }
     /* A letter on a colour of the site's own: no favicon can be had without asking every
        bookmarked site for one, which would tell them all what you have kept. */
@@ -148,9 +150,11 @@
       display: flex; align-items: center; justify-content: center;
       font: 700 10px/1 system-ui, sans-serif; }
     .markrow.cur { background: rgba(255, 138, 0, 0.18); box-shadow: inset 0 0 0 1px #ff8a00; }
-    .marktitle { flex: none; max-width: 24ch; overflow: hidden; text-overflow: ellipsis;
+    .marktitle { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; color: #e8e8ea; }
-    .markurl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7d828b; }
+    /* The name matters more than the address, so the address is what gives way first. */
+    .markurl { flex: 0 4 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; color: #7d828b; font-size: 11px; }
     .here { flex: none; color: #ffb13b; font-size: 11px; }
     .tag { position: absolute; display: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
     .tag.dim { opacity: 0.25; }
@@ -460,7 +464,7 @@
       ui.action.style.display = item ? '' : 'none';
       if (item) {
         ui.verb.textContent = list.verb;
-        ui.detail.textContent = shortUrl(item.url);
+        ui.detail.textContent = siteOf(item.url);
       }
       ui.extras.classList.add('on');
       return;
@@ -1187,7 +1191,7 @@
     const icon = make('span', 'favicon', initialOf(item));
     icon.style.background = colourOf(item.url);
     row.append(icon, make('span', 'marktitle', item.title),
-      make('span', 'markurl', shortUrl(item.url)));
+      make('span', 'markurl', siteOf(item.url)));
     const note = list.note(item);
     if (note) row.append(make('span', 'here', note));
     return row;
@@ -1231,8 +1235,11 @@
     return `hsl(${hue}, 60%, 62%)`;
   }
 
-  function shortUrl(url) {
-    return url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+  // Just the site: no http://, no www., nothing after the host either. The bookmark's own name
+  // says which page it is, so the address only has to say where it lives. Anything without a
+  // host of its own (a file, say) keeps what it had, minus the parts nobody reads.
+  function siteOf(url) {
+    return hostOf(url) || url.replace(/^[a-z]+:\/\//i, '').replace(/\/$/, '');
   }
 
   // ---- Searching ------------------------------------------------------------------------------

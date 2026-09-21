@@ -55,6 +55,12 @@ They are listed in the folders you keep them in, so a long list reads like your 
 rather than one run of names. Folder names count as something to type, too: `work` finds
 everything in a Work folder, whatever the bookmarks in it are called.
 
+Each folder's bookmarks are laid out side by side rather than in one long column, which halves
+how far there is to scroll, and the address beside each name is only the site it is on:
+`github.com`, not `https://www.github.com/kalatz/uokey/issues/new`. The name already says which
+page it is. Typing still looks at the whole address, so a word from the part that isn't shown
+will still find it.
+
 Each one carries a small square with the site's first letter, coloured from the address, so two
 bookmarks on the same site look alike at a glance. They are not the sites' real favicons:
 Firefox keeps those where an extension can't read them, and the only other way to get one is to
