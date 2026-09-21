@@ -27,10 +27,13 @@ browser.commands.onCommand.addListener(async (command) => {
 // A shortcut written with a letter only reaches the listener above when the keyboard types that
 // Latin letter, so with a Greek layout (or Russian, Hebrew, …) it never runs. content.js watches
 // for the keys itself as well, and asks here which ones they are.
-browser.runtime.onMessage.addListener((message) => {
+browser.runtime.onMessage.addListener((message, sender) => {
   if (message === 'get-shortcut') return currentShortcut();
   if (message === 'get-places') return places();
   if (message === 'get-marks') return allBookmarks();
+  if (message === 'get-tabs') return openTabs();
+  if (message && message.tab !== undefined) return focusTab(message.tab, message.window);
+  if (message && message.newTab) return newTab(message.newTab, sender);
   return undefined;
 });
 
@@ -75,7 +78,7 @@ browser.commands.onChanged?.addListener(async ({ name }) => {
 });
 
 
-// ---- What !marks needs ----------------------------------------------------------------------
+// ---- What !marks and !tabs need ----------------------------------------------------------------------
 
 // Every bookmark there is, for !marks, each with the folder it sits in so the panel can group
 // them the way they are kept. Walked rather than searched, because a flat search knows only a
@@ -104,5 +107,52 @@ function gatherMarks(node, path, found) {
         folder: path.join(' / '),
       });
     }
+  }
+}
+
+// ---- Tabs -------------------------------------------------------------------------------------
+
+// Every tab open anywhere, for !tabs, with the ones in this window marked so they can be kept
+// together. Reading a tab's title and address is what the tabs permission is for.
+async function openTabs() {
+  try {
+    const here = await browser.windows.getCurrent();
+    const found = await browser.tabs.query({});
+    return found.map((tab) => ({
+      id: tab.id,
+      windowId: tab.windowId,
+      title: tab.title || tab.url || 'Untitled',
+      url: tab.url || '',
+      active: !!tab.active,
+      here: tab.windowId === here.id,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// A tab in another window is no use without the window it is in coming forward too.
+async function focusTab(id, windowId) {
+  try {
+    await browser.tabs.update(id, { active: true });
+    if (windowId !== undefined) await browser.windows.update(windowId, { focused: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// A page cannot open a tab behind itself. Next to the one that asked, not at the far end, and
+// left in the background so that Shift+Enter keeps you where you are.
+async function newTab(url, sender) {
+  try {
+    await browser.tabs.create({
+      url,
+      active: false,
+      ...(sender.tab ? { index: sender.tab.index + 1, openerTabId: sender.tab.id } : {}),
+    });
+    return true;
+  } catch {
+    return false;
   }
 }

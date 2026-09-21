@@ -74,10 +74,14 @@
     { name: 'short',
       summary: `a hint key on everything clickable; ${HINT_PREFIX} then the key uses one`,
       run: startShort },
-    { name: 'marks', summary: 'find one of your bookmarks by name and open it', run: startMarks },
+    { name: 'marks',
+      summary: 'find one of your bookmarks by name and open it',
+      run: () => startList('marks') },
+    { name: 'tabs',
+      summary: 'find one of your open tabs by name and go to it',
+      run: () => startList('tabs') },
   ];
-  const MARK_PLACEHOLDER = 'Find a bookmark…';
-  const MAX_MARKS = 200; // bookmarks listed at once
+  const MAX_LIST = 200; // bookmarks or tabs listed at once
 
   // Firefox lets extensions look inside closed shadow roots as well as open ones.
   const shadowOf = 'openOrClosedShadowRoot' in Element.prototype
@@ -151,6 +155,7 @@
     .marktitle { flex: none; max-width: 24ch; overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; color: #e8e8ea; }
     .markurl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7d828b; }
+    .here { flex: none; color: #ffb13b; font-size: 11px; }
     .tag { position: absolute; display: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
     .tag.dim { opacity: 0.25; }
     .tag.hit { background: #ff8a00; }
@@ -177,11 +182,11 @@
   let hintPending = null; // null: not in a hint; '' or more: keys typed since HINT_PREFIX
   let places = { home: '', bookmarks: [] }; // what background.js knows and the page can't
   let placesAsked = false;
-  let markMode = false;
-  let marks = [];
-  let marksAsked = false;
-  let markMatches = [];
-  let markCurrent = -1;
+  let list = null; // the LISTS entry being shown, or null for none
+  let listItems = [];
+  let listMatches = [];
+  let listCurrent = -1;
+  const listCache = new Map(); // bookmarks are asked for once a page; tabs every time
 
   // The keyboard shortcut is handled by background.js, which tells the page to open or close
   // the bar. That way it works wherever the focus is, and can be changed in Firefox's settings.
@@ -232,16 +237,18 @@
     if (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       const direction = e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1;
-      if (inMarks()) stepMark(direction);
+      if (inList()) stepList(direction);
       else step(direction);
     } else if (e.key === 'Enter' || e.key === 'Escape') {
       e.preventDefault();
       swallowKeyUp = e.code;
       if (e.key === 'Enter') {
-        if (inMarks()) openMark();
-        else activateCurrent();
+        // Shift or Ctrl with it opens a link in a tab behind this one instead of going there.
+        const newTab = e.shiftKey || e.ctrlKey;
+        if (inList()) useList(newTab);
+        else activateCurrent(newTab);
       } else if (shortMode) stopShort(); // Esc puts the hints away before it closes the bar
-      else if (markMode) stopMarks(); // and leaves the bookmarks before it closes the bar
+      else if (list) stopList(); // and leaves the list before it closes the bar
       else close(true);
     }
   }
@@ -315,7 +322,7 @@
       commandMatches = [];
       current = -1;
       stopShort();
-      leaveMarks();
+      leaveList();
       hidePanel();
       showStatus();
       render();
@@ -360,7 +367,7 @@
     shortMode = false;
     hints = [];
     hintPending = null;
-    leaveMarks();
+    leaveList();
     const previous = returnFocus;
     returnFocus = null;
     if (restoreFocus && previous && previous !== document.body && previous.isConnected) {
@@ -453,14 +460,14 @@
       ui.extras.classList.add('on');
       return;
     }
-    if (inMarks()) {
-      const mark = markMatches[markCurrent];
-      ui.bar.classList.toggle('none', !mark);
-      ui.count.textContent = `${mark ? markCurrent + 1 : 0}/${markMatches.length}`;
-      ui.action.style.display = mark ? '' : 'none';
-      if (mark) {
-        ui.verb.textContent = '↵ open';
-        ui.detail.textContent = shortUrl(mark.url);
+    if (inList()) {
+      const item = listMatches[listCurrent];
+      ui.bar.classList.toggle('none', !item);
+      ui.count.textContent = `${item ? listCurrent + 1 : 0}/${listMatches.length}`;
+      ui.action.style.display = item ? '' : 'none';
+      if (item) {
+        ui.verb.textContent = list.verb;
+        ui.detail.textContent = shortUrl(item.url);
       }
       ui.extras.classList.add('on');
       return;
@@ -579,7 +586,7 @@
 
   // ---- Clicking -------------------------------------------------------------------------------
 
-  function activateCurrent() {
+  function activateCurrent(newTab) {
     if (ui.input.value.trim().startsWith(COMMAND_PREFIX)) {
       runCommand();
       return;
@@ -587,9 +594,18 @@
     if (searchTimer || (indexDirty && ui.input.value.trim())) runSearch(); // results are stale
     const m = matches[current];
     if (!m) return;
+    // Only a link goes anywhere on its own, so only a link can be opened in a tab behind this
+    // one; a button or a field is clicked where it stands, whatever was held down.
+    const href = newTab ? linkOf(m) : '';
     const rect = rectsOf(m)[0];
     close(false);
-    activate(m, rect);
+    if (href) openNewTab(href);
+    else activate(m, rect);
+  }
+
+  function linkOf(m) {
+    const link = m.target.closest && m.target.closest('a[href]');
+    return link && /^https?:/i.test(link.href) ? link.href : '';
   }
 
   function activate(m, rect) {
@@ -711,6 +727,8 @@
         [`${COMMAND_PREFIX}help`, 'this page'],
         [`${COMMAND_PREFIX}short`, 'a hint key on everything clickable'],
         [`${COMMAND_PREFIX}marks`, 'find one of your bookmarks and open it'],
+        [`${COMMAND_PREFIX}tabs`, 'find one of your open tabs and go to it'],
+        ['Shift+Enter', 'open a link, or a bookmark, in a tab behind this one'],
         [`${HINT_PREFIX} then a hint key`, 'use that hint, while the hints are up'],
         ['b  f  h', `with ${HINT_PREFIX}: back, forward, home`],
         ['1 2 3 …', `with ${HINT_PREFIX}: the bookmarks on your bookmarks toolbar`],
@@ -952,112 +970,162 @@
     return tag;
   }
 
-  // ---- !marks: find a bookmark by name ----------------------------------------------------
+  // ---- Lists: !marks and !tabs ----------------------------------------------------------------
 
-  // The bar already knows how to find a thing by typing part of its name. !marks points that at
-  // your bookmarks instead of the page, so there is no second way of working to learn.
-  function startMarks() {
+  // Both are one idea: somewhere to go, narrowed by typing the way a page is. A list says what
+  // it is called, where its things come from, what text finds one, which heading it belongs
+  // under and what Enter does with it. Everything below this is shared between them.
+  const LISTS = {
+    marks: {
+      placeholder: 'Find a bookmark…',
+      ask: 'get-marks',
+      verb: '↵ open',
+      title: (shown, all) => `Bookmarks (${shown} of ${all})`,
+      none: 'No bookmark matches that',
+      empty: 'No bookmarks to show. UOKey reads them through the bookmarks permission; if that '
+        + 'was turned off in about:addons there is nothing here to find.',
+      text: (item) => `${item.title} ${item.url} ${item.folder || ''}`,
+      group: (item) => item.folder || 'Bookmarks',
+      note: () => '',
+      use: (item, newTab) => {
+        close(false);
+        if (newTab) openNewTab(item.url);
+        else location.href = item.url;
+      },
+    },
+    tabs: {
+      placeholder: 'Find an open tab…',
+      ask: 'get-tabs',
+      verb: '↵ go there',
+      fresh: true, // tabs open and close while you are not looking; bookmarks do not
+      title: (shown, all) => `Tabs (${shown} of ${all})`,
+      none: 'No open tab matches that',
+      empty: 'No tabs to show. UOKey reads them through the tabs permission.',
+      text: (item) => `${item.title} ${item.url}`,
+      group: (item) => (item.here ? 'This window' : 'Other windows'),
+      note: (item) => (item.active ? 'this tab' : ''),
+      use: (item) => {
+        close(false);
+        browser.runtime.sendMessage({ tab: item.id, window: item.windowId }).catch(() => {});
+      },
+    },
+  };
+
+  function startList(name) {
+    const which = LISTS[name];
+    if (!which) return;
     ui.input.value = '';
     commandMatches = [];
     matches = [];
     current = -1;
-    markMode = true;
-    ui.input.placeholder = MARK_PLACEHOLDER;
-    ensureMarks().then(() => {
-      if (markMode) filterMarks();
+    list = which;
+    ui.input.placeholder = which.placeholder;
+    ensureList(name, which).then((items) => {
+      if (list !== which) return; // left again before the answer came back
+      listItems = items;
+      filterList();
     });
   }
 
-  // A command can still be typed while the bookmarks are up, and means the command.
-  function inMarks() {
-    return markMode && !ui.input.value.trim().startsWith(COMMAND_PREFIX);
+  // A command can still be typed while a list is up, and means the command.
+  function inList() {
+    return !!list && !ui.input.value.trim().startsWith(COMMAND_PREFIX);
   }
 
-  function leaveMarks() {
-    markMode = false;
-    markMatches = [];
-    markCurrent = -1;
+  function leaveList() {
+    list = null;
+    listItems = [];
+    listMatches = [];
+    listCurrent = -1;
     if (ui) ui.input.placeholder = PLACEHOLDER;
   }
 
-  function stopMarks() {
-    leaveMarks();
+  function stopList() {
+    leaveList();
     ui.input.value = '';
     hidePanel();
     runSearch();
   }
 
-  // Asked for once and kept: a bookmark list doesn't change while a bar is open.
-  function ensureMarks() {
-    if (marksAsked) return Promise.resolve(marks);
-    marksAsked = true;
-    return browser.runtime.sendMessage('get-marks')
+  function ensureList(name, which) {
+    if (!which.fresh && listCache.has(name)) return Promise.resolve(listCache.get(name));
+    return browser.runtime.sendMessage(which.ask)
       .then((found) => {
-        if (Array.isArray(found)) {
-          marks = found.map((mark) => ({
-            title: mark.title,
-            url: mark.url,
-            folder: mark.folder || '',
-            // Title, address or the folder it is kept in: any of the three will find it.
-            folded: fold(`${mark.title} ${mark.url} ${mark.folder || ''}`),
-          }));
-        }
-        return marks;
+        const items = Array.isArray(found)
+          ? found.map((item) => ({ ...item, folded: fold(which.text(item)) }))
+          : [];
+        if (!which.fresh) listCache.set(name, items);
+        return items;
       })
-      .catch(() => marks); // no answer: the panel says there are none
+      .catch(() => []); // no answer: the panel says there is nothing
   }
 
-  function filterMarks() {
+  function filterList() {
     const query = fold(ui.input.value);
-    const found = query ? marks.filter((mark) => mark.folded.includes(query)) : marks;
-    markMatches = found.slice(0, MAX_MARKS);
-    markCurrent = markMatches.length ? 0 : -1;
-    showMarks();
+    const found = query ? listItems.filter((item) => item.folded.includes(query)) : listItems;
+    listMatches = found.slice(0, MAX_LIST);
+    listCurrent = listMatches.length ? 0 : -1;
+    showList();
     showStatus();
     render();
   }
 
-  function showMarks() {
-    showPanel(fillMarks);
+  function showList() {
+    showPanel(fillList);
     const here = ui.panel.querySelector('.cur');
     if (here) here.scrollIntoView({ block: 'nearest' });
   }
 
-  function fillMarks(panel) {
-    if (!marks.length) {
-      panel.append(
-        make('h1', '', 'Bookmarks'),
-        make('p', '', 'None to show. UOKey reads them through the bookmarks permission; if that '
-          + 'was turned off in about:addons there is nothing here to find.'),
-      );
+  function fillList(panel) {
+    if (!listItems.length) {
+      panel.append(make('h1', '', list.placeholder), make('p', '', list.empty));
       return;
     }
-    panel.append(make('h1', '', markMatches.length
-      ? `Bookmarks (${markMatches.length} of ${marks.length})`
-      : 'No bookmark matches that'));
-    // Kept in the folders they live in, in the order they first turn up, so a long list reads
-    // like the bookmark menu rather than one run of names.
-    const folders = new Map();
-    markMatches.forEach((mark, i) => {
-      const where = mark.folder || 'Bookmarks';
-      if (!folders.has(where)) folders.set(where, []);
-      folders.get(where).push([mark, i]);
+    panel.append(make('h1', '', listMatches.length
+      ? list.title(listMatches.length, listItems.length)
+      : list.none));
+    // Kept in their groups, in the order they first turn up, so a long list reads the way the
+    // thing it came from is arranged rather than as one run of names.
+    const groups = new Map();
+    listMatches.forEach((item, i) => {
+      const where = list.group(item);
+      if (!groups.has(where)) groups.set(where, []);
+      groups.get(where).push([item, i]);
     });
-    for (const [where, inIt] of folders) {
+    for (const [where, inIt] of groups) {
       panel.append(make('h2', '', where));
-      const list = make('div', 'marks');
-      for (const [mark, i] of inIt) list.append(markRow(mark, i));
-      panel.append(list);
+      const rows = make('div', 'marks');
+      for (const [item, i] of inIt) rows.append(listRow(item, i));
+      panel.append(rows);
     }
   }
 
-  function markRow(mark, i) {
-    const row = make('div', `markrow${i === markCurrent ? ' cur' : ''}`);
-    const icon = make('span', 'favicon', initialOf(mark));
-    icon.style.background = colourOf(mark.url);
-    row.append(icon, make('span', 'marktitle', mark.title),
-      make('span', 'markurl', shortUrl(mark.url)));
+  function listRow(item, i) {
+    const row = make('div', `markrow${i === listCurrent ? ' cur' : ''}`);
+    const icon = make('span', 'favicon', initialOf(item));
+    icon.style.background = colourOf(item.url);
+    row.append(icon, make('span', 'marktitle', item.title),
+      make('span', 'markurl', shortUrl(item.url)));
+    const note = list.note(item);
+    if (note) row.append(make('span', 'here', note));
     return row;
+  }
+
+  function stepList(direction) {
+    if (!listMatches.length) return;
+    listCurrent = (listCurrent + direction + listMatches.length) % listMatches.length;
+    showList();
+    showStatus();
+  }
+
+  function useList(newTab) {
+    const item = listMatches[listCurrent];
+    if (item) list.use(item, newTab);
+  }
+
+  // A page cannot put a tab behind itself, so background.js opens it.
+  function openNewTab(url) {
+    browser.runtime.sendMessage({ newTab: url }).catch(() => window.open(url, '_blank'));
   }
 
   function hostOf(url) {
@@ -1068,9 +1136,9 @@
     }
   }
 
-  // The site's first letter, not the bookmark's: two bookmarks on one site then look alike.
-  function initialOf(mark) {
-    return (hostOf(mark.url) || mark.title || '?').charAt(0).toUpperCase();
+  // The site's first letter, not the thing's own: two of them on one site then look alike.
+  function initialOf(item) {
+    return (hostOf(item.url) || item.title || '?').charAt(0).toUpperCase();
   }
 
   // The same site always gets the same colour, so they are told apart by more than the letter.
@@ -1079,20 +1147,6 @@
     let hue = 0;
     for (let i = 0; i < host.length; i++) hue = (hue * 31 + host.charCodeAt(i)) % 360;
     return `hsl(${hue}, 60%, 62%)`;
-  }
-
-  function stepMark(direction) {
-    if (!markMatches.length) return;
-    markCurrent = (markCurrent + direction + markMatches.length) % markMatches.length;
-    showMarks();
-    showStatus();
-  }
-
-  function openMark() {
-    const mark = markMatches[markCurrent];
-    if (!mark) return;
-    close(false);
-    location.href = mark.url;
   }
 
   function shortUrl(url) {
@@ -1109,8 +1163,8 @@
       showCommands(typed);
       return;
     }
-    if (markMode) {
-      filterMarks();
+    if (list) {
+      filterList();
       return;
     }
     hidePanel();

@@ -18,10 +18,29 @@ match is a text field, Enter puts the cursor in it instead so you can type.
 | !short | put a hint key on everything clickable |
 | % then a hint key | use that hint, while the hints are up |
 | !marks | find one of your bookmarks and open it |
+| !tabs | find one of your open tabs and go to it |
+| Shift+Enter | open a link, or a bookmark, in a tab behind this one |
 
 Anything typed starting with `!` is a command for UOKey instead of text to look for on the page, so
 `!help` opens a panel above the bar with what UOKey does and every key it uses, the shortcut named
 as it is actually set. Typing `!` on its own lists the commands there are.
+
+## Tabs: !tabs
+
+Type `!tabs` and the bar looks through the tabs you have open, by their titles and addresses.
+Enter goes to the one highlighted, bringing its window forward if it is in another one. Tabs in
+the window you are in are listed first, and the one you are reading is marked.
+
+It searches what the tab is called, not what is on the page, so a tab titled `Page3` is found by
+`page3` rather than by words further down it.
+
+## Opening in a new tab
+
+Hold **Shift** (or Ctrl) with Enter and a link opens in a tab behind the one you are in, leaving
+you where you are. It works on a match in the page and on a bookmark in `!marks`.
+
+Only links can do this: a button or a field has nowhere of its own to go, so Shift+Enter clicks
+or focuses it exactly as plain Enter would.
 
 ## Bookmarks: !marks
 
@@ -65,9 +84,9 @@ start of another one and nothing waits to see what you type next. `b`, `f` and `
 given to the page, so they always mean back, forward and home. Esc puts the hints away and
 leaves the bar open; Esc again closes it.
 
-Reading your bookmarks and your home page setting is why UOKey asks for the **bookmarks** and
-**browser settings** permissions when you install it. It only reads them, and nothing is stored
-or sent anywhere.
+Reading your bookmarks, your open tabs and your home page setting is why UOKey asks for the
+**bookmarks**, **tabs** and **browser settings** permissions when you install it. It only reads
+them, and nothing is stored or sent anywhere.
 
 The bar keeps out of the way: it opens as nothing but the box to type in, centred at the bottom of
 the page, and says nothing about commands or keys until you ask. The match count and what Enter
