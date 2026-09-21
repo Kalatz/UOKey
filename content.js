@@ -44,6 +44,10 @@
   const IGNORABLE = /[\p{M}\p{Cf}]/gu; // accents, soft hyphens, zero-width and direction marks
   const DEFAULT_SHORTCUT = 'Ctrl+Space';
   const SAME_PRESS = 1000; // ms; Firefox's own shortcut arriving after we handled the same keys
+  // The shortcut can reach the page twice over: Firefox's own command, and the frame that had
+  // the keyboard, which watches for the keys itself. Neither is reliably first, so two reports
+  // this close together are taken for the one press.
+  const DOUBLE_PRESS = 120; // ms
   // Where the keys Firefox lets a shortcut use sit on the keyboard, for the ones that aren't
   // letters or digits.
   const KEY_CODES = {
@@ -57,6 +61,7 @@
   // bar stops pulling, and works from wherever the keys land instead.
   const FOCUS_FIGHT_LIMIT = 6;
   const FOCUS_FIGHT_WINDOW = 400; // ms
+  const HINT_WAIT = 150; // ms given to the page's frames to say how much they have to hint
   const REINDEX_AFTER = 1000; // ms; while typing, re-read a page that keeps changing at most this often
   const MAX_SCAN = 3000; // text occurrences examined per search
   const MAX_MATCHES = 300; // matches kept per search
@@ -86,6 +91,8 @@
   ];
   const MAX_LIST = 200; // bookmarks or tabs listed at once
   const SHORT_PLACEHOLDER = 'Press a hint key…';
+  // A modifier held down on its own: nothing to pass out of a frame to the bar.
+  const BARE_MODIFIERS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'AltGraph']);
   // Keys that move a cursor about: nothing for them to do while the hints are up.
   const DEAD_IN_HINTS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
     'Home', 'End', 'PageUp', 'PageDown']);
@@ -173,6 +180,13 @@
     @media (max-width: 700px) { .detail { display: none; } }
   `;
 
+  // This copy of UOKey is running inside one of the page's frames rather than in the page
+  // itself. Everything on a page that sits in an <iframe> — a help widget, a cookie wall, a
+  // payment field — is a document of its own that the page cannot read, so UOKey runs in every
+  // frame as well. The copy in the page owns the bar and everything the user sees; the copies
+  // in the frames are its eyes and hands in there.
+  const inFrame = window.top !== window;
+
   let ui = null;
   let isOpen = false;
   let returnFocus = null;
@@ -187,6 +201,7 @@
   let shortcutText = DEFAULT_SHORTCUT;
   let shortcut = parseShortcut(DEFAULT_SHORTCUT);
   let keyToggleTime = -Infinity; // no keys of ours caught yet, however new the page is
+  let shortcutAt = -Infinity; // when the shortcut was last acted on, whichever way it arrived
   let commandMatches = [];
   let leaving = false; // the page is going; closing the bar now is not the user's doing
   let claimingFocus = false; // the bar is handing the keyboard to the page on purpose
@@ -198,6 +213,14 @@
   let shortMode = false;
   let hints = [];
   let hintPending = null; // null: not in a hint; '' or more: keys typed since HINT_PREFIX
+  let hintCandidates = []; // what this document has to hint, before the keys are handed out
+  const frameCounts = new Map(); // frame → how many matches it has for what is in the bar
+  const frameHints = new Map(); // frame → how many things it has to hint
+  const frameCodes = new Map(); // hint key → the frame it belongs to
+  let frameQuery = null; // what the frames were last asked to look for
+  let inFrameAt = null; // { id, at }: the current match is that one of that frame's
+  let frameSays = ['', '']; // and that is what the frame says Enter would do with it
+  let hintTimer = 0;
   let list = null; // the LISTS entry being shown, or null for none
   let listItems = [];
   let listMatches = [];
@@ -211,15 +234,142 @@
   browser.runtime.onMessage.addListener((message) => {
     if (message === 'toggle-finder') {
       // Unless the keys were already caught below, which happens first: one press, one toggle.
-      if (performance.now() - keyToggleTime > SAME_PRESS) toggle();
+      if (performance.now() - keyToggleTime > SAME_PRESS) shortcutPressed();
     } else if (message === 'bar-on') {
       if (!isOpen && document.body) quietly(() => open(deepActiveElement()));
     } else if (message === 'bar-off') {
       if (isOpen) quietly(() => close(false));
     } else if (message && typeof message.shortcut === 'string') {
       setShortcut(message.shortcut);
+    } else if (message && message.uokey) {
+      if (inFrame) fromPage(message);
+      else fromFrame(message);
     }
   });
+
+  // ---- The page and its frames ----------------------------------------------------------------
+  //
+  // The copies of this script in one page's frames have no way of reaching each other, so the
+  // background script passes a message between them: a frame's number, or 'all' of them. The
+  // frame it came from is added on the way, so that an answer knows where to go back to.
+
+  function relay(to, body) {
+    browser.runtime.sendMessage({ relay: to, body }).catch(() => { /* nobody listening */ });
+  }
+
+  const toTop = (body) => relay(0, body);
+  const toFrame = (id, body) => relay(id, body);
+  const toFrames = (body) => relay('all', body);
+
+  // In a frame: what the page has asked of it. A frame searches itself, draws over itself and
+  // says what it found; it never decides anything, because the bar is not in here.
+  function fromPage(message) {
+    if (!isOpen) return;
+    switch (message.uokey) {
+      case 'find':
+        ui.input.value = message.query;
+        runSearch();
+        toTop({ uokey: 'found', query: message.query, count: matches.length });
+        break;
+      case 'current': {
+        current = message.at;
+        const m = matches[current];
+        if (m) {
+          reveal(m);
+          const [verb, detail] = describe(m.target);
+          toTop({ uokey: 'says', verb, detail });
+        }
+        render();
+        break;
+      }
+      case 'use': {
+        const m = matches[message.at];
+        if (m) useMatch(m, message.newTab);
+        break;
+      }
+      case 'hints':
+        hintCandidates = clickableElements();
+        shortMode = true;
+        toTop({ uokey: 'counted', count: hintCandidates.length });
+        break;
+      case 'codes':
+        hints = message.codes
+          .map((code, i) => ({ code, el: hintCandidates[i] }))
+          .filter((h) => h.el);
+        render();
+        break;
+      case 'typed':
+        hintPending = message.prefix;
+        render();
+        break;
+      case 'usecode': {
+        const hit = hints.find((h) => h.code === message.code);
+        if (hit) useHint(hit);
+        break;
+      }
+      case 'stop':
+        leaveShort();
+        render();
+        break;
+      default:
+    }
+  }
+
+  // In the page: what one of its frames has answered, or passed on.
+  function fromFrame(message) {
+    switch (message.uokey) {
+      case 'here':
+        // A frame that has only just loaded, into a page where the bar is already open.
+        if (!isOpen) return;
+        if (frameQuery) toFrame(message.from, { uokey: 'find', query: frameQuery });
+        if (shortMode) collectHints();
+        break;
+      case 'shortcut':
+        // The shortcut keys, caught in a frame because that is where the keyboard was.
+        shortcutPressed();
+        break;
+      case 'key':
+        keyFromFrame(message);
+        break;
+      case 'found':
+        if (!isOpen || message.query !== frameQuery) return;
+        if (message.count) frameCounts.set(message.from, message.count);
+        else frameCounts.delete(message.from);
+        if (currentIndex() < 0) goTo(0);
+        showStatus();
+        render();
+        break;
+      case 'says':
+        if (!inFrameAt || inFrameAt.id !== message.from) return;
+        frameSays = [message.verb, message.detail];
+        showStatus();
+        break;
+      case 'counted':
+        if (!isOpen || !shortMode) return;
+        if (message.count) frameHints.set(message.from, message.count);
+        else frameHints.delete(message.from);
+        break;
+      case 'used':
+        // Whatever the frame clicked has very likely changed the page, hints and all.
+        if (isOpen && shortMode) collectHints();
+        break;
+      default:
+    }
+  }
+
+  // A key typed while the keyboard was inside a frame. The bar is here, so it is dealt with
+  // here, exactly as though it had been typed into the bar; the frame has already kept it from
+  // its own page.
+  function keyFromFrame(k) {
+    if (!isOpen) return;
+    onKeyDown({
+      key: k.key, code: k.code, shiftKey: k.shift, ctrlKey: k.ctrl, altKey: k.alt,
+      metaKey: k.meta, isTrusted: true, isComposing: false, repeat: false, target: null,
+      preventDefault() {}, stopImmediatePropagation() {},
+    });
+    // Its release happens in the frame and never reaches here, so nothing waits for it.
+    swallowKeyUp = '';
+  }
 
   // Which keys those are, so the page can watch for them too (see matchesShortcut), and so
   // !help can name them.
@@ -278,8 +428,12 @@
       e.stopImmediatePropagation();
       swallowKeyUp = e.code;
       if (!e.repeat) {
-        keyToggleTime = performance.now();
-        toggle();
+        if (inFrame) {
+          toTop({ uokey: 'shortcut' }); // the switch belongs to the page, not to this frame
+        } else {
+          keyToggleTime = performance.now();
+          shortcutPressed();
+        }
       }
       return;
     }
@@ -290,6 +444,16 @@
     // key landed would leave the bar on screen and dead.
     e.stopImmediatePropagation(); // keep the page's own keyboard shortcuts out of it
     if (!e.isTrusted || e.isComposing) return;
+    if (inFrame) {
+      // The bar is in the page, not in here, so the key is passed out to it rather than dealt
+      // with: this frame knows nothing about what has been typed so far. What the bar would
+      // type is kept from the frame as well, the way it is kept from the page itself.
+      if (BARE_MODIFIERS.has(e.key)) return;
+      if (!e.ctrlKey && !e.altKey && !e.metaKey) e.preventDefault();
+      toTop({ uokey: 'key', key: e.key, code: e.code,
+        shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey });
+      return;
+    }
     if (shortMode && handleHintKey(e)) return;
     if (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -327,8 +491,9 @@
       return; // a key with nothing to add to the box: F5, a modifier on its own, …
     }
     // The page may only have blurred the box rather than be holding on to it, in which case
-    // this is the last key that has to be put there by hand.
-    if (mayClaimFocus()) focusBar();
+    // this is the last key that has to be put there by hand. A key passed out of a frame is a
+    // different matter: the keyboard is meant to be in there.
+    if (mayClaimFocus() && !keyboardInFrame()) focusBar();
     onTyped();
   }
 
@@ -345,6 +510,15 @@
 
   function stopIfOurs(e) {
     if (isOpen) e.stopImmediatePropagation();
+  }
+
+  // The shortcut, however it got here. Held down, it arrives over and over; that is one press
+  // too, or the bar would flicker on and off under the finger.
+  function shortcutPressed() {
+    const now = performance.now();
+    if (now - shortcutAt < DOUBLE_PRESS) return;
+    shortcutAt = now;
+    toggle();
   }
 
   function toggle() {
@@ -418,13 +592,19 @@
       addEventListener('scroll', scheduleRender, true);
       addEventListener('resize', scheduleRender);
       addEventListener('mousedown', onMouseDown, true);
-      addEventListener('focus', onPageFocus);
-      addEventListener('focusin', onPageFocusIn, true);
+      if (!inFrame) {
+        addEventListener('focus', onPageFocus);
+        addEventListener('focusin', onPageFocusIn, true);
+      }
       // Read the page while the user starts typing, so the first key is quick.
       requestIdleCallback(() => {
         if (isOpen) ensureIndex();
       }, { timeout: 300 });
+      // A frame that has only just loaded says so, in case the bar is already up and looking
+      // for something: nobody has asked this frame anything yet.
+      if (inFrame) toTop({ uokey: 'here' });
     }
+    if (inFrame) return; // the keyboard, and the box it belongs in, are the page's
     focusBar();
     // A page can't take the keyboard from Firefox's own toolbar (e.g. the address bar). F6 moves
     // it to the page, and onPageFocus then puts it in the bar.
@@ -433,8 +613,16 @@
 
   // The page got the keyboard (back) while the bar is open: the cursor belongs in the bar.
   function onPageFocus() {
-    if (!barHasFocus()) focusBar();
+    if (!barHasFocus() && !keyboardInFrame()) focusBar();
     ui.input.placeholder = PLACEHOLDER;
+  }
+
+  // The keyboard is inside one of the page's frames. That is not a loss worth undoing: the copy
+  // of UOKey in there passes every key back out to the bar, and pulling the cursor out would
+  // take it off whatever the frame has just put it in.
+  function keyboardInFrame() {
+    const el = document.activeElement;
+    return !!el && (el.localName === 'iframe' || el.localName === 'frame');
   }
 
   // Something in the page took the keyboard away — a cookie wall or a newsletter box opening
@@ -444,6 +632,7 @@
   // either way, wherever they land (see onKeyDown), so the bar stays usable regardless.
   function onPageFocusIn(e) {
     if (!isOpen || claimingFocus || e.target === ui.host) return;
+    if (keyboardInFrame()) return; // a frame of the page's own: it hands the keys back out
     layerDirty = true; // whatever took the keyboard has probably just gone up on top, too
     scheduleRender();
     const now = performance.now();
@@ -484,6 +673,14 @@
     clearTimeout(searchTimer);
     searchTimer = 0;
     ui.host.remove(); // which takes it out of the top layer as well, keyboard and all
+    clearTimeout(hintTimer);
+    hintTimer = 0;
+    hintCandidates = [];
+    frameCounts.clear();
+    frameHints.clear();
+    frameCodes.clear();
+    frameQuery = null;
+    inFrameAt = null;
     layered = -1;
     layerDirty = true;
     focusFights = 0;
@@ -543,7 +740,11 @@
     const panel = make('div', 'panel');
     const dock = make('div', 'dock');
     dock.append(panel, row); // on top the dock turns over, so the panel is always the far side
-    root.append(make('style', '', CSS), layer, dock);
+    root.append(make('style', '', CSS), layer);
+    // The bar itself belongs to the page. A frame builds it all the same and leaves it out of
+    // the page, so that the box still holds what is being looked for and nothing has to ask,
+    // at every turn, whether there is a bar to write to.
+    if (!inFrame) root.append(dock);
 
     input.addEventListener('input', onTyped);
     // Clicking the bar or the panel must not take focus away from the input.
@@ -578,15 +779,17 @@
   }
 
   function showStatus() {
+    if (inFrame) return; // there is no bar in here to say it in
     if (shortMode && !ui.input.value.trim().startsWith(COMMAND_PREFIX)) {
       ui.bar.classList.remove('none');
       ui.count.textContent = '';
       ui.action.style.display = '';
+      const shown = hints.length + frameCodes.size;
       ui.verb.textContent = hintPending || 'hints';
       ui.detail.textContent = hintPending ? 'keep going'
-        : (hints.length
-          ? `${hints.length} on this page — ${COMMAND_PREFIX}short or Esc to stop`
-          : 'nothing on this page can be clicked');
+        : (shown
+          ? `${shown} on this page — ${COMMAND_PREFIX}short or Esc to stop`
+          : (hintTimer ? 'looking…' : 'nothing on this page can be clicked'));
       ui.extras.classList.add('on');
       return;
     }
@@ -623,13 +826,19 @@
       return;
     }
     const m = matches[current];
-    ui.bar.classList.toggle('none', text !== '' && !m);
-    ui.count.textContent = text ? `${m ? current + 1 : 0}/${matches.length}` : '';
-    ui.action.style.display = m ? '' : 'none';
+    const total = totalMatches();
+    const at = currentIndex();
+    ui.bar.classList.toggle('none', text !== '' && !total);
+    ui.count.textContent = text ? `${at >= 0 ? at + 1 : 0}/${total}` : '';
+    ui.action.style.display = at >= 0 ? '' : 'none';
     if (m) {
       const [verb, detail] = describe(m.target);
       ui.verb.textContent = `↵ ${verb}`;
       ui.detail.textContent = detail;
+    } else if (inFrameAt) {
+      // The match is in a frame, which has said what it is; until it does, Enter clicks.
+      ui.verb.textContent = `↵ ${frameSays[0] || 'click'}`;
+      ui.detail.textContent = frameSays[1];
     }
     // Nothing typed yet: the bar is only the box to type in.
     ui.extras.classList.toggle('on', text !== '');
@@ -767,11 +976,84 @@
 
   function step(direction) {
     if (searchTimer) runSearch(); // a one-letter search may still be waiting
-    if (!matches.length) return;
-    current = (current + direction + matches.length) % matches.length;
-    reveal(matches[current]);
+    if (!totalMatches()) return;
+    const at = currentIndex();
+    goTo(at < 0 ? (direction > 0 ? 0 : -1) : at + direction);
     showStatus();
     render();
+  }
+
+  // ---- Matches in the page's frames ------------------------------------------------------------
+  //
+  // A frame keeps its own matches and draws its own highlights, so all the page holds of them is
+  // how many each frame has. The page's own come first, then each frame's in the order the
+  // frames come, which is the order they are read in.
+
+  function frameOrder() {
+    return [...frameCounts.keys()].sort((a, b) => a - b);
+  }
+
+  function totalMatches() {
+    let n = matches.length;
+    for (const count of frameCounts.values()) n += count;
+    return n;
+  }
+
+  // Where the current match comes in the page as a whole, counting the frames in it.
+  function currentIndex() {
+    if (current >= 0) return current;
+    if (!inFrameAt) return -1;
+    let n = matches.length;
+    for (const id of frameOrder()) {
+      if (id === inFrameAt.id) return n + inFrameAt.at;
+      n += frameCounts.get(id);
+    }
+    return -1;
+  }
+
+  // The other way about: make the nth match of the page as a whole the current one.
+  function goTo(n) {
+    const total = totalMatches();
+    if (!total) return;
+    n = ((n % total) + total) % total;
+    if (n < matches.length) {
+      leaveFrameMatch();
+      current = n;
+      reveal(matches[current]);
+      return;
+    }
+    n -= matches.length;
+    for (const id of frameOrder()) {
+      const count = frameCounts.get(id);
+      if (n < count) {
+        leaveFrameMatch();
+        current = -1;
+        inFrameAt = { id, at: n };
+        // The frame shows it and scrolls to it, and says back what Enter would do with it.
+        toFrame(id, { uokey: 'current', at: n });
+        return;
+      }
+      n -= count;
+    }
+  }
+
+  // The current match was in a frame and is not any more, so that frame stops showing it as the
+  // one Enter would click.
+  function leaveFrameMatch() {
+    if (!inFrameAt) return;
+    toFrame(inFrameAt.id, { uokey: 'current', at: -1 });
+    inFrameAt = null;
+    frameSays = ['', ''];
+  }
+
+  // The frames look for the same thing, and answer in their own time. Asking again for what
+  // they are already looking for would only make them do it twice.
+  function askFrames(text) {
+    if (inFrame || text === frameQuery) return;
+    frameQuery = text;
+    leaveFrameMatch();
+    frameCounts.clear();
+    toFrames({ uokey: 'find', query: text });
   }
 
   // Scroll a match into view if it isn't fully visible.
@@ -789,9 +1071,17 @@
       runCommand();
       return;
     }
+    if (inFrameAt) {
+      // The match is inside a frame, and only the frame can click it.
+      toFrame(inFrameAt.id, { uokey: 'use', at: inFrameAt.at, newTab });
+      return;
+    }
     if (searchTimer || (indexDirty && ui.input.value.trim())) runSearch(); // results are stale
     const m = matches[current];
-    if (!m) return;
+    if (m) useMatch(m, newTab);
+  }
+
+  function useMatch(m, newTab) {
     // Only a link goes anywhere on its own, so only a link can be opened in a tab behind this
     // one; a button or a field is clicked where it stands, whatever was held down.
     const href = newTab ? linkOf(m) : '';
@@ -1011,8 +1301,14 @@
   }
 
   function leaveShort() {
+    if (!inFrame) toFrames({ uokey: 'stop' });
+    clearTimeout(hintTimer);
+    hintTimer = 0;
     shortMode = false;
     hints = [];
+    hintCandidates = [];
+    frameHints.clear();
+    frameCodes.clear();
     hintPending = null;
     if (!ui) return;
     ui.input.placeholder = PLACEHOLDER;
@@ -1027,25 +1323,57 @@
   }
 
   function collectHints() {
-    hints = [];
-    for (const [el, code] of codesFor(clickableElements(), [...HINT_ALPHABET])) {
-      hints.push({ code, el });
+    // The hints already up are left where they are until the new ones are ready, so that using
+    // one doesn't blink them all off the page while the frames answer.
+    hintCandidates = clickableElements();
+    if (inFrame) return; // a frame is asked what it has; the page hands out the keys
+    frameHints.clear();
+    frameCodes.clear();
+    clearTimeout(hintTimer);
+    if (!document.querySelector('iframe, frame')) {
+      handOutHints(); // nothing to wait for: straight up, as they always were
+      return;
     }
+    // The frames have to say how much they have before a single key can be handed out, or a
+    // hint in the page would be the start of one inside a frame and neither could be pressed.
+    toFrames({ uokey: 'hints' });
+    hintTimer = setTimeout(handOutHints, HINT_WAIT);
+  }
+
+  // One run of keys for the page and every frame in it, the page's own first, each frame's in
+  // the order the frames come.
+  function handOutHints() {
+    hintTimer = 0;
+    if (!isOpen || !shortMode) return;
+    const order = [...frameHints.keys()].sort((a, b) => a - b);
+    let total = hintCandidates.length;
+    for (const count of frameHints.values()) total += count;
+    const codes = codeList(Math.min(total, MAX_HINTS), [...HINT_ALPHABET]);
+    hints = hintCandidates.slice(0, codes.length).map((el, i) => ({ code: codes[i], el }));
+    frameCodes.clear();
+    let at = hints.length;
+    for (const id of order) {
+      const mine = codes.slice(at, at + frameHints.get(id));
+      at += mine.length;
+      for (const code of mine) frameCodes.set(code, id);
+      toFrame(id, { uokey: 'codes', codes: mine });
+    }
+    showStatus();
+    render();
   }
 
   // One letter each while they fit, two when they don't, so no hint is the start of another.
-  function codesFor(els, letters) {
+  function codeList(n, letters) {
     const out = [];
     if (!letters.length) return out;
-    if (els.length <= letters.length) {
-      els.forEach((el, i) => out.push([el, letters[i]]));
+    if (n <= letters.length) {
+      for (let i = 0; i < n; i++) out.push(letters[i]);
       return out;
     }
-    let i = 0;
     for (const a of letters) {
       for (const b of letters) {
-        if (i >= els.length) return out;
-        out.push([els[i++], a + b]);
+        if (out.length >= n) return out;
+        out.push(a + b);
       }
     }
     return out;
@@ -1083,6 +1411,8 @@
   // The hand is inherited, so only the element it starts at counts, and not when it is wrapped
   // round a real link or button that is getting a hint of its own.
   function clickable(el, cursor, handAbove) {
+    // A frame has a copy of UOKey of its own, which hints what is inside it.
+    if (el.localName === 'iframe' || el.localName === 'frame') return false;
     if (el.matches(ACTIONABLE)) return true;
     if (cursor !== 'pointer' || handAbove === 'pointer') return false;
     return !el.querySelector(ACTIONABLE);
@@ -1098,9 +1428,7 @@
     if (e.key === COMMAND_PREFIX || ui.input.value.startsWith(COMMAND_PREFIX)) return false;
     if (e.key === HINT_PREFIX) {
       e.preventDefault();
-      hintPending = '';
-      showStatus();
-      render();
+      setPending('');
       return true;
     }
     if (e.key === 'Escape') {
@@ -1112,9 +1440,7 @@
     if (e.key === 'Backspace') {
       if (hintPending === null) return false;
       e.preventDefault();
-      hintPending = hintPending.slice(0, -1) || null;
-      showStatus();
-      render();
+      setPending(hintPending.slice(0, -1) || null);
       return true;
     }
     // The box is not for typing in while the hints are up, so the keys that would move about
@@ -1129,15 +1455,20 @@
     const hit = hints.find((h) => h.code === typed);
     if (hit) {
       swallowKeyUp = e.code;
-      hintPending = null;
-      showStatus();
+      setPending(null);
       useHint(hit);
       return true;
     }
-    if (hints.some((h) => h.code.startsWith(typed))) {
-      hintPending = typed;
-      showStatus();
-      render();
+    // A hint belonging to one of the page's frames: only the frame can press it.
+    const owner = frameCodes.get(typed);
+    if (owner !== undefined) {
+      swallowKeyUp = e.code;
+      setPending(null);
+      toFrame(owner, { uokey: 'usecode', code: typed });
+      return true;
+    }
+    if (hints.some((h) => h.code.startsWith(typed)) || startsOne(frameCodes.keys(), typed)) {
+      setPending(typed);
       return true;
     }
     cancelHint(); // no hint starts with that
@@ -1145,15 +1476,31 @@
   }
 
   function cancelHint() {
-    hintPending = null;
+    setPending(null);
+  }
+
+  // How far a hint has been typed. The frames are told as well, so that a hint inside one dims
+  // or lights up along with the page's own.
+  function setPending(value) {
+    hintPending = value;
+    if (frameCodes.size) toFrames({ uokey: 'typed', prefix: value });
     showStatus();
     render();
+  }
+
+  function startsOne(codes, typed) {
+    for (const code of codes) if (code.startsWith(typed)) return true;
+    return false;
   }
 
   function useHint(hint) {
     if (!hint.el.isConnected) return;
     const el = hint.el;
     useElement({ target: el, clickEl: el, ranges: [], els: [el] }, el.getBoundingClientRect());
+    if (inFrame) {
+      toTop({ uokey: 'used' }); // the page works the hints out again, for every frame at once
+      return;
+    }
     if (!isOpen || !shortMode) return;
     // The page has very likely changed, so the hints are worked out again rather than left
     // pointing at what was there before.
@@ -1525,10 +1872,12 @@
     searchTimer = 0;
     const typed = ui.input.value.trim();
     if (typed.startsWith(COMMAND_PREFIX)) {
+      askFrames(''); // a command is not something to go looking for in them
       showCommands(typed);
       return;
     }
     if (list) {
+      askFrames('');
       filterList();
       return;
     }
@@ -1541,10 +1890,14 @@
     if (query) {
       ensureIndex();
       matches = findMatches(query);
-      current = pickCurrent(previous && previous.target);
+      // A frame is shown its match when the page says which one is current, not before.
+      current = inFrame ? -1 : pickCurrent(previous && previous.target);
       const m = matches[current];
       if (m && (!previous || m.target !== previous.target)) reveal(m);
     }
+    askFrames(ui.input.value);
+    // Nothing here matches, but a frame may have said it has something.
+    if (!inFrame && current < 0 && currentIndex() < 0) goTo(0);
     showStatus();
     render();
   }

@@ -150,6 +150,26 @@ Reading your bookmarks and your open tabs is why UOKey asks for the **bookmarks*
 permissions when you install it, and keeping site icons is what **storage** is for. It only
 reads them, and nothing is sent anywhere.
 
+## Frames: the popups that are pages of their own
+
+A good deal of what looks like part of a page isn't: a help widget, a chat box, a cookie wall, a
+payment field. Each is an `<iframe>` — a page of its own, dropped into a hole in the one you are
+reading — and a page cannot read what is inside one.
+
+UOKey runs in every frame as well, so all of it counts as one page. Type and the matches in a
+widget are found along with the rest; `!short` puts hints in there too, and Tab walks from the
+page into a frame and out the other side without anything to say it has.
+
+The keys are handed out as one run across the page and everything in it, so a hint in the page is
+never the start of a hint inside a frame: whatever you press means one thing only. A page that has
+frames waits a moment for them to say what they have before the hints go up. A page that has none
+puts them up as fast as it always did.
+
+The bar itself is only ever in the page, never in the frames, however many there are. When one of
+them has the keyboard — a help box that opens with the cursor already in its search field — what
+you type is passed out to the bar, so the bar goes on working from in there without having to take
+the cursor off what the frame has just put it in.
+
 ## Running on the pages you visit
 
 UOKey works by reading the page in front of you — the text of its links, buttons and fields — so
@@ -207,6 +227,6 @@ it. Signing is free and the extension can stay private:
   the PDF viewer and Reader View. Nothing an extension can do changes this.
 - For the same reason, `!short` can't put its hints on Firefox's own toolbar. Back, forward, home
   and the bookmarks get a strip inside the page instead, and the keys still work.
-- Links inside embedded frames (iframes) aren't searched. On a non-Latin layout the shortcut also
-  needs the cursor to be outside an embedded frame, because that is where UOKey can watch for it.
+- A frame UOKey is not allowed into — a sandboxed one, or one on a page Firefox keeps
+  extensions off — is a blank to it, the same way a whole page of that kind is.
 - Text that is part of a picture can only be found if the picture has alt text.

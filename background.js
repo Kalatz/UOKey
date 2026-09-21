@@ -10,9 +10,13 @@ async function currentShortcut() {
   return command ? command.shortcut || '' : DEFAULT_SHORTCUT;
 }
 
-async function tell(tabId, message) {
+// A page's frames each run their own copy of content.js, so a message with no frame named goes
+// to all of them. TOP_FRAME is the page itself, which is where the bar lives.
+const TOP_FRAME = 0;
+
+async function tell(tabId, message, frameId) {
   try {
-    await browser.tabs.sendMessage(tabId, message);
+    await browser.tabs.sendMessage(tabId, message, frameId === undefined ? {} : { frameId });
   } catch {
     // No content script on this page: Firefox's own pages (about:, the add-ons site, …).
   }
@@ -21,8 +25,20 @@ async function tell(tabId, message) {
 browser.commands.onCommand.addListener(async (command) => {
   if (command !== 'toggle-finder') return;
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (tab) await tell(tab.id, 'toggle-finder');
+  // Only the page itself: the bar is one per page, not one per frame in it.
+  if (tab) await tell(tab.id, 'toggle-finder', TOP_FRAME);
 });
+
+// The copies of content.js in one page's frames have no way of reaching each other, so this
+// passes a message between them. `relay` is the frame to say it to, or 'all' for every one of
+// them, and the frame it came from is added so that an answer can be sent back.
+function passOn(message, sender) {
+  const tab = sender.tab && sender.tab.id;
+  if (tab === undefined) return Promise.resolve(false);
+  const body = { ...message.body, from: sender.frameId };
+  tell(tab, body, message.relay === 'all' ? undefined : message.relay);
+  return Promise.resolve(true);
+}
 
 // A shortcut written with a letter only reaches the listener above when the keyboard types that
 // Latin letter, so with a Greek layout (or Russian, Hebrew, …) it never runs. content.js watches
@@ -61,9 +77,10 @@ async function rememberBar(on) {
 
 browser.runtime.onMessage.addListener((message, sender) => {
   if (message === 'get-shortcut') return currentShortcut();
+  if (message && message.relay !== undefined) return passOn(message, sender);
   if (message === 'bar-state') return barIsWanted();
   if (message && message.bar !== undefined) {
-    spreadBar(!!message.bar, sender);
+    spreadBar(!!message.bar);
     return rememberBar(message.bar);
   }
   if (message === 'get-marks') return allBookmarks();
@@ -203,13 +220,14 @@ async function newTab(url, sender) {
   }
 }
 
-// One switch for the whole browser, not one per page. The tab it was pressed in has already
-// done it; the rest are told so they match rather than each keeping its own idea.
-async function spreadBar(on, sender) {
-  const from = sender && sender.tab ? sender.tab.id : -1;
+// One switch for the whole browser, not one per page. Every frame of every tab is told, the
+// one it was pressed in included: it has already done it and doing it again changes nothing,
+// while the frames beside it in the same page have not heard at all, and the bar is in only
+// one of them.
+async function spreadBar(on) {
   try {
     for (const tab of await browser.tabs.query({})) {
-      if (tab.id !== from) tell(tab.id, on ? 'bar-on' : 'bar-off');
+      tell(tab.id, on ? 'bar-on' : 'bar-off');
     }
   } catch {
     /* no tabs to tell */
