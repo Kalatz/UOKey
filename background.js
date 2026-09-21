@@ -27,9 +27,13 @@ browser.commands.onCommand.addListener(async (command) => {
 // A shortcut written with a letter only reaches the listener above when the keyboard types that
 // Latin letter, so with a Greek layout (or Russian, Hebrew, …) it never runs. content.js watches
 // for the keys itself as well, and asks here which ones they are.
-browser.runtime.onMessage.addListener((message) => {
+browser.runtime.onMessage.addListener((message, sender) => {
   if (message === 'get-shortcut') return currentShortcut();
   if (message === 'get-places') return places();
+  if (message === 'get-marks') return allBookmarks();
+  if (message === 'get-sites') return topSites();
+  if (message === 'is-home') return isHome();
+  if (message && message.open) return openUrl(sender, message.open);
   return undefined;
 });
 
@@ -72,3 +76,57 @@ browser.commands.onChanged?.addListener(async ({ name }) => {
   const shortcut = await currentShortcut();
   for (const tab of await browser.tabs.query({})) tell(tab.id, { shortcut });
 });
+
+
+// ---- What !marks and UOKey's own new tab page need -------------------------------------------
+
+// Every bookmark there is, for !marks. Folders have no url; a place: query isn't a page.
+async function allBookmarks() {
+  try {
+    const found = await browser.bookmarks.search({});
+    return found
+      .filter((mark) => mark.url && NAVIGABLE.test(mark.url))
+      .map((mark) => ({ title: mark.title || mark.url, url: mark.url }));
+  } catch {
+    return [];
+  }
+}
+
+// The sites Firefox would have put on its own new tab page, for the one UOKey puts there instead.
+async function topSites() {
+  try {
+    const sites = await browser.topSites.get({ includeFavicon: false, limit: 12 });
+    return sites
+      .filter((site) => NAVIGABLE.test(site.url))
+      .map((site) => ({ title: site.title || site.url, url: site.url }));
+  } catch {
+    return [];
+  }
+}
+
+function ownPage() {
+  return browser.runtime.getURL('newtab.html');
+}
+
+// browserSettings.homepageOverride is read-only (Firefox declares it so), which is why the home
+// page is claimed by chrome_settings_overrides in the manifest instead: Firefox then asks the
+// user itself, and they can undo it in Settings. All that is left to do here is read it back.
+async function isHome() {
+  try {
+    const setting = await browser.browserSettings.homepageOverride.get({});
+    return String(setting.value || '').split('|')[0].trim() === ownPage();
+  } catch {
+    return false;
+  }
+}
+
+// A page cannot send itself to moz-extension:, so UOKey's own page is opened from here.
+async function openUrl(sender, url) {
+  try {
+    if (!sender.tab) return false;
+    await browser.tabs.update(sender.tab.id, { url });
+    return true;
+  } catch {
+    return false;
+  }
+}

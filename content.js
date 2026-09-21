@@ -74,7 +74,10 @@
     { name: 'short',
       summary: `a hint key on everything clickable; ${HINT_PREFIX} then the key uses one`,
       run: startShort },
+    { name: 'marks', summary: 'find one of your bookmarks by name and open it', run: startMarks },
   ];
+  const MARK_PLACEHOLDER = 'Find a bookmark…';
+  const MAX_MARKS = 200; // bookmarks listed at once
 
   // Firefox lets extensions look inside closed shadow roots as well as open ones.
   const shadowOf = 'openOrClosedShadowRoot' in Element.prototype
@@ -133,6 +136,12 @@
     .slabel { color: #c9cdd4; max-width: 16ch; overflow: hidden;
       text-overflow: ellipsis; white-space: nowrap; }
     .more { color: #7d828b; }
+    .marks { display: flex; flex-direction: column; gap: 1px; }
+    .markrow { display: flex; gap: 10px; padding: 4px 7px; border-radius: 6px; min-width: 0; }
+    .markrow.cur { background: rgba(255, 138, 0, 0.18); box-shadow: inset 0 0 0 1px #ff8a00; }
+    .marktitle { flex: none; max-width: 24ch; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; color: #e8e8ea; }
+    .markurl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #7d828b; }
     .tag { position: absolute; display: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
     .tag.dim { opacity: 0.25; }
     .tag.hit { background: #ff8a00; }
@@ -159,6 +168,11 @@
   let hintPending = null; // null: not in a hint; '' or more: keys typed since HINT_PREFIX
   let places = { home: '', bookmarks: [] }; // what background.js knows and the page can't
   let placesAsked = false;
+  let markMode = false;
+  let marks = [];
+  let marksAsked = false;
+  let markMatches = [];
+  let markCurrent = -1;
 
   // The keyboard shortcut is handled by background.js, which tells the page to open or close
   // the bar. That way it works wherever the focus is, and can be changed in Firefox's settings.
@@ -208,12 +222,17 @@
     if (shortMode && handleHintKey(e)) return;
     if (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
-      step(e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1);
+      const direction = e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1;
+      if (inMarks()) stepMark(direction);
+      else step(direction);
     } else if (e.key === 'Enter' || e.key === 'Escape') {
       e.preventDefault();
       swallowKeyUp = e.code;
-      if (e.key === 'Enter') activateCurrent();
-      else if (shortMode) stopShort(); // Esc puts the hints away before it closes the bar
+      if (e.key === 'Enter') {
+        if (inMarks()) openMark();
+        else activateCurrent();
+      } else if (shortMode) stopShort(); // Esc puts the hints away before it closes the bar
+      else if (markMode) stopMarks(); // and leaves the bookmarks before it closes the bar
       else close(true);
     }
   }
@@ -287,6 +306,7 @@
       commandMatches = [];
       current = -1;
       stopShort();
+      leaveMarks();
       hidePanel();
       showStatus();
       render();
@@ -331,6 +351,7 @@
     shortMode = false;
     hints = [];
     hintPending = null;
+    leaveMarks();
     const previous = returnFocus;
     returnFocus = null;
     if (restoreFocus && previous && previous !== document.body && previous.isConnected) {
@@ -420,6 +441,18 @@
       ui.action.style.display = '';
       ui.verb.textContent = HINT_PREFIX + hintPending;
       ui.detail.textContent = 'hint key';
+      ui.extras.classList.add('on');
+      return;
+    }
+    if (inMarks()) {
+      const mark = markMatches[markCurrent];
+      ui.bar.classList.toggle('none', !mark);
+      ui.count.textContent = `${mark ? markCurrent + 1 : 0}/${markMatches.length}`;
+      ui.action.style.display = mark ? '' : 'none';
+      if (mark) {
+        ui.verb.textContent = '↵ open';
+        ui.detail.textContent = shortUrl(mark.url);
+      }
       ui.extras.classList.add('on');
       return;
     }
@@ -668,16 +701,18 @@
         ['Esc', 'close the bar and put the cursor back where it was'],
         [`${COMMAND_PREFIX}help`, 'this page'],
         [`${COMMAND_PREFIX}short`, 'a hint key on everything clickable'],
+        [`${COMMAND_PREFIX}marks`, 'find one of your bookmarks and open it'],
         [`${HINT_PREFIX} then a hint key`, 'use that hint, while the hints are up'],
         ['b  f  h', `with ${HINT_PREFIX}: back, forward, home`],
         ['1 2 3 …', `with ${HINT_PREFIX}: the bookmarks on your bookmarks toolbar`],
       ]),
       make('p', 'note', 'It finds the text you can see, and also the placeholder, label, tooltip '
         + 'or picture description of things that have no text of their own. '
-        + 'The bar cannot open on Firefox\'s own pages, such as a new tab or the home page, '
-        + 'because Firefox lets no extension run there, and for the same reason the back, '
-        + `forward, home and bookmark hints in ${COMMAND_PREFIX}short sit in a strip of their `
-        + 'own rather than beside the real buttons. '
+        + 'Firefox lets no extension run on its own pages, so UOKey stands in for the new tab '
+        + 'and the home page rather than running on Firefox\'s. It still cannot open on other '
+        + 'about: pages or on addons.mozilla.org, and for the same reason the back, forward, '
+        + `home and bookmark hints in ${COMMAND_PREFIX}short sit in a strip of their own rather `
+        + 'than beside the real buttons. '
         + 'To use other keys for the bar, open about:addons → ⚙ → Manage Extension Shortcuts.'),
     );
   }
@@ -909,6 +944,114 @@
     return tag;
   }
 
+  // ---- !marks: find a bookmark by name ----------------------------------------------------
+
+  // The bar already knows how to find a thing by typing part of its name. !marks points that at
+  // your bookmarks instead of the page, so there is no second way of working to learn.
+  function startMarks() {
+    ui.input.value = '';
+    commandMatches = [];
+    matches = [];
+    current = -1;
+    markMode = true;
+    ui.input.placeholder = MARK_PLACEHOLDER;
+    ensureMarks().then(() => {
+      if (markMode) filterMarks();
+    });
+  }
+
+  // A command can still be typed while the bookmarks are up, and means the command.
+  function inMarks() {
+    return markMode && !ui.input.value.trim().startsWith(COMMAND_PREFIX);
+  }
+
+  function leaveMarks() {
+    markMode = false;
+    markMatches = [];
+    markCurrent = -1;
+    if (ui) ui.input.placeholder = PLACEHOLDER;
+  }
+
+  function stopMarks() {
+    leaveMarks();
+    ui.input.value = '';
+    hidePanel();
+    runSearch();
+  }
+
+  // Asked for once and kept: a bookmark list doesn't change while a bar is open.
+  function ensureMarks() {
+    if (marksAsked) return Promise.resolve(marks);
+    marksAsked = true;
+    return browser.runtime.sendMessage('get-marks')
+      .then((found) => {
+        if (Array.isArray(found)) {
+          marks = found.map((mark) => ({
+            title: mark.title,
+            url: mark.url,
+            folded: fold(`${mark.title} ${mark.url}`), // title or address, either will find it
+          }));
+        }
+        return marks;
+      })
+      .catch(() => marks); // no answer: the panel says there are none
+  }
+
+  function filterMarks() {
+    const query = fold(ui.input.value);
+    const found = query ? marks.filter((mark) => mark.folded.includes(query)) : marks;
+    markMatches = found.slice(0, MAX_MARKS);
+    markCurrent = markMatches.length ? 0 : -1;
+    showMarks();
+    showStatus();
+    render();
+  }
+
+  function showMarks() {
+    showPanel(fillMarks);
+    const here = ui.panel.querySelector('.cur');
+    if (here) here.scrollIntoView({ block: 'nearest' });
+  }
+
+  function fillMarks(panel) {
+    if (!marks.length) {
+      panel.append(
+        make('h1', '', 'Bookmarks'),
+        make('p', '', 'None to show. UOKey reads them through the bookmarks permission; if that '
+          + 'was turned off in about:addons there is nothing here to find.'),
+      );
+      return;
+    }
+    panel.append(make('h1', '', markMatches.length
+      ? `Bookmarks (${markMatches.length} of ${marks.length})`
+      : 'No bookmark matches that'));
+    const list = make('div', 'marks');
+    markMatches.forEach((mark, i) => {
+      const row = make('div', `markrow${i === markCurrent ? ' cur' : ''}`);
+      row.append(make('span', 'marktitle', mark.title), make('span', 'markurl', shortUrl(mark.url)));
+      list.append(row);
+    });
+    panel.append(list);
+  }
+
+  function stepMark(direction) {
+    if (!markMatches.length) return;
+    markCurrent = (markCurrent + direction + markMatches.length) % markMatches.length;
+    showMarks();
+    showStatus();
+  }
+
+  function openMark() {
+    const mark = markMatches[markCurrent];
+    if (!mark) return;
+    close(false);
+    location.href = mark.url;
+  }
+
+  function shortUrl(url) {
+    return url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+  }
+
   // ---- Searching ------------------------------------------------------------------------------
 
   function runSearch() {
@@ -917,6 +1060,10 @@
     const typed = ui.input.value.trim();
     if (typed.startsWith(COMMAND_PREFIX)) {
       showCommands(typed);
+      return;
+    }
+    if (markMode) {
+      filterMarks();
       return;
     }
     hidePanel();
