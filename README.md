@@ -90,15 +90,9 @@ rather than a button; Esc does the same.
 Using a hint does not put the hints away. They are worked out again for the page as it now
 stands, so you can press one button after another without reaching for anything.
 
-`!short` puts nothing on the screen but the keys themselves. Back, forward, home and your
-bookmarks toolbar have keys of their own, which `!help` lists:
-
-| Key | What it does |
-| --- | --- |
-| b | back |
-| f | forward |
-| h | your home page |
-| 1 2 3 … | the bookmarks on your bookmarks toolbar, left to right |
+`!short` is about the page in front of you and nothing else: it puts no keys on the screen but
+the ones belonging to things you can click. The bar says how many it found, so a page where
+nothing is clickable says so rather than looking broken.
 
 A `%` in front of a hint key still works, which is how this used to be done, but nothing needs
 it. Anything starting with `!` still goes to the bar as a command, which is why `!short` can
@@ -107,14 +101,10 @@ switch the hints off from inside the hints.
 While the hints are up the box is not for typing in, so the arrow keys, Home, End, Page Up and
 Page Down do nothing at all rather than dragging a cursor about inside it.
 
-The strip is UOKey's own, drawn in the page. Firefox doesn't let an extension draw anything on
-its real toolbar, so the hints can't sit next to the actual back, forward and bookmark buttons —
-but the keys do the real thing.
-
-Page hints are one letter each while they fit and two when they don't, so no hint is ever the
-start of another one and nothing waits to see what you type next. `b`, `f` and `h` are never
-given to the page, so they always mean back, forward and home. Esc puts the hints away and
-leaves the bar open; Esc again closes it.
+Hints are one letter each while they fit and two when they don't, so no hint is ever the start
+of another one and nothing waits to see what you type next. They are handed out along the home
+row first — `a s d f g h j k l` — so the ones you reach for most are under your fingers. Esc puts
+the hints away and leaves the bar open; Esc again closes it.
 
 The bar is also kept at the very end of the page, so a popup the page throws up afterwards —
 a cookie wall, a newsletter box — cannot sit on top of it. The highest z-index there is still
@@ -135,9 +125,9 @@ The one thing that still closes it by itself is Enter on a text field, because t
 be in the field rather than in the bar for you to be able to type. Enter on anything else leaves
 the bar open and empties the box, ready for the next thing rather than still holding the last.
 
-Reading your bookmarks, your open tabs and your home page setting is why UOKey asks for the
-**bookmarks**, **tabs** and **browser settings** permissions when you install it, and keeping
-site icons is what **storage** is for. It only reads them, and nothing is sent anywhere.
+Reading your bookmarks and your open tabs is why UOKey asks for the **bookmarks** and **tabs**
+permissions when you install it, and keeping site icons is what **storage** is for. It only
+reads them, and nothing is sent anywhere.
 
 ## Running on the pages you visit
 

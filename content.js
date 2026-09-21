@@ -6,9 +6,8 @@
  * match is highlighted. Enter clicks the current match, or puts the cursor in it when it is a
  * text field. Tab / Shift+Tab (or Down / Up) move between matches, Esc closes the bar.
  *
- * Type !short instead and every clickable thing on the page gets a hint key, listed in a table
- * above the bar along with back, forward, home and the bookmarks toolbar. Press a hint key to
- * use it; !short again, or Esc, puts them away.
+ * Type !short instead and every clickable thing on the page gets a hint key just under it.
+ * Press that key to use it; !short again, or Esc, puts them away.
  */
 (() => {
   'use strict';
@@ -63,10 +62,9 @@
   const COMMAND_PREFIX = '!';
   // In !short, this marks the next key or two as a hint rather than text to find on the page.
   const HINT_PREFIX = '%';
-  // a-z without b, f and h, which back, forward and home take. Page hints are drawn from this,
-  // all one letter while they fit and all two when they don't, so no hint is the start of another.
-  const HINT_ALPHABET = 'acdegijklmnopqrstuvwxyz';
-  const BOOKMARK_KEYS = '1234567890'; // digits keep bookmarks out of the page hints' way
+  // Home row first, so the hints that get handed out first are the easiest to reach. All one
+  // letter while they fit and all two when they don't, so no hint is the start of another.
+  const HINT_ALPHABET = 'asdfghjklqwertyuiopzxcvbnm';
   const MAX_HINTS = 400;
   const TAG_OVER = 2; // px a hint sits over the bottom edge of its thing, so they read as one
   const COMMANDS = [
@@ -190,8 +188,6 @@
   let shortMode = false;
   let hints = [];
   let hintPending = null; // null: not in a hint; '' or more: keys typed since HINT_PREFIX
-  let places = { home: '', bookmarks: [] }; // what background.js knows and the page can't
-  let placesAsked = false;
   let list = null; // the LISTS entry being shown, or null for none
   let listItems = [];
   let listMatches = [];
@@ -500,9 +496,10 @@
       ui.count.textContent = '';
       ui.action.style.display = '';
       ui.verb.textContent = hintPending || 'hints';
-      ui.detail.textContent = hintPending
-        ? 'keep going'
-        : `press a hint key, ${COMMAND_PREFIX}short or Esc to stop`;
+      ui.detail.textContent = hintPending ? 'keep going'
+        : (hints.length
+          ? `${hints.length} on this page — ${COMMAND_PREFIX}short or Esc to stop`
+          : 'nothing on this page can be clicked');
       ui.extras.classList.add('on');
       return;
     }
@@ -822,9 +819,8 @@
 
       make('h2', '', 'While the hints are up'),
       rows([
-        ['a hint key', 'use the hint it belongs to'],
-        ['b  f  h', 'back, forward, home'],
-        ['1 2 3 …', 'your bookmarks toolbar, left to right'],
+        ['a hint key', 'click the thing it sits under'],
+        [`${COMMAND_PREFIX}short  Esc`, 'put the hints away'],
       ]),
 
       make('p', 'note', 'Things with no text of their own are found by their placeholder, '
@@ -843,8 +839,6 @@
 
   // ---- !short: a hint key on everything ---------------------------------------------------
 
-  // An extension cannot draw on Firefox's own toolbar, so back, forward, home and the bookmarks
-  // toolbar are listed with the page's own hints above the bar. The keys still do the real thing.
   function startShort() {
     if (shortMode) {
       stopShort(); // !short again puts them away: it is a switch, not a button
@@ -860,14 +854,11 @@
     shortMode = true;
     hintPending = null;
     ui.input.placeholder = SHORT_PLACEHOLDER;
-    // The page's hints could be worked out here, but the bookmarks have to be asked for, and
-    // they take the first keys, so wait and hand out every hint at once.
-    ensurePlaces().then(() => {
-      if (!shortMode) return;
-      collectHints();
-      showStatus();
-      render();
-    });
+    // Worked out here and now. The hints used to wait on the bookmarks being fetched, which
+    // meant nothing appeared at all if that answer never came back.
+    collectHints();
+    showStatus();
+    render();
   }
 
   function leaveShort() {
@@ -886,38 +877,10 @@
     render();
   }
 
-  // background.js holds the bookmarks and the home page; a page is told once and it is kept.
-  function ensurePlaces() {
-    if (placesAsked) return Promise.resolve(places);
-    placesAsked = true;
-    return browser.runtime.sendMessage('get-places')
-      .then((answer) => {
-        if (answer) places = answer;
-        return places;
-      })
-      .catch(() => places); // no answer: back and forward are still there
-  }
-
   function collectHints() {
-    hints = [
-      { code: 'b', label: 'back', kind: 'back' },
-      { code: 'f', label: 'forward', kind: 'forward' },
-    ];
-    if (places.home) {
-      hints.push({ code: 'h', label: 'home', kind: 'url', url: places.home });
-    }
-    const spare = [...BOOKMARK_KEYS, ...HINT_ALPHABET];
-    let n = 0;
-    for (const mark of places.bookmarks) {
-      if (n >= spare.length) break;
-      hints.push({
-        code: spare[n++], label: mark.title, kind: 'url', url: mark.url, bookmark: true,
-      });
-    }
-    const taken = new Set(hints.map((h) => h.code));
-    const letters = [...HINT_ALPHABET].filter((c) => !taken.has(c));
-    for (const [el, code] of codesFor(clickableElements(), letters)) {
-      hints.push({ code, label: '', kind: 'element', el });
+    hints = [];
+    for (const [el, code] of codesFor(clickableElements(), [...HINT_ALPHABET])) {
+      hints.push({ code, el });
     }
   }
 
@@ -1024,19 +987,6 @@
   }
 
   function useHint(hint) {
-    // These three leave the page, so there is nothing to keep the hints on.
-    if (hint.kind === 'back') {
-      history.back();
-      return;
-    }
-    if (hint.kind === 'forward') {
-      history.forward();
-      return;
-    }
-    if (hint.kind === 'url') {
-      location.href = hint.url;
-      return;
-    }
     if (!hint.el.isConnected) return;
     const el = hint.el;
     useElement({ target: el, clickEl: el, ranges: [], els: [el] }, el.getBoundingClientRect());
@@ -1052,7 +1002,7 @@
   function renderTags() {
     let used = 0;
     for (const h of hints) {
-      if (h.kind !== 'element' || !h.el.isConnected) continue;
+      if (!h.el.isConnected) continue;
       const r = h.el.getBoundingClientRect();
       if (r.width < 2 || r.height < 2) continue;
       if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
