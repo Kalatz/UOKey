@@ -68,7 +68,7 @@
   const HINT_ALPHABET = 'acdegijklmnopqrstuvwxyz';
   const BOOKMARK_KEYS = '1234567890'; // digits keep bookmarks out of the page hints' way
   const MAX_HINTS = 400;
-  const TAG_LIFT = 17; // px a hint sits above its thing; its own height, so they don't overlap
+  const TAG_OVER = 2; // px a hint sits over the bottom edge of its thing, so they read as one
   const COMMANDS = [
     { name: 'help', summary: 'what UOKey does, and every key it uses', fill: fillHelp },
     { name: 'short',
@@ -571,6 +571,7 @@
   function render() {
     frame = 0;
     if (!isOpen) return;
+    stayOnTop();
     const width = innerWidth;
     const height = innerHeight;
     const cur = matches[current];
@@ -599,6 +600,17 @@
 
     if (shortMode) renderTags();
     else hideTags();
+  }
+
+  // The highest z-index there is still loses to anything the page adds after us and asks for
+  // the same, so the bar is put back at the end whenever something else takes that place.
+  // Moving it takes the keyboard with it, which has to be handed back.
+  function stayOnTop() {
+    const top = document.documentElement;
+    if (!top || ui.host === top.lastElementChild) return;
+    const had = document.activeElement === ui.host;
+    top.append(ui.host);
+    if (had) ui.input.focus({ preventScroll: true });
   }
 
   function addBox() {
@@ -791,32 +803,35 @@
 
   function fillHelp(panel) {
     panel.append(
-      make('h1', '', 'UOKey'),
-      make('p', '', 'Click links, buttons and fields with the keyboard instead of the mouse. '
-        + 'Type part of what you can read on one: capitals, accents and the keyboard you type '
-        + 'in make no difference.'),
+      make('h1', '', 'UOKey — Use Only Keyboard'),
+      make('p', '', 'Type part of what you can read on a link, button or field. Capitals, '
+        + 'accents and the keyboard you type in make no difference.'),
+
+      make('h2', '', 'The bar'),
       rows([
-        [shortcutText || 'No shortcut set', 'open this bar, or close it again'],
-        ['Enter', 'click the orange match, or start typing in it when it is a field'],
+        [shortcutText || 'No shortcut set', 'switch the bar on, and off again'],
+        ['Enter', 'click the orange match, or type in it when it is a field'],
+        ['Shift+Enter', 'open a link in a tab behind this one'],
         ['Tab  ↓', 'next match'],
         ['Shift+Tab  ↑', 'previous match'],
-        ['Esc', 'leave the hints or the list, then close the bar'],
-        [`${COMMAND_PREFIX}help`, 'this page'],
-        [`${COMMAND_PREFIX}short`, 'a hint key on everything clickable; again to put them away'],
-        [`${COMMAND_PREFIX}marks`, 'find one of your bookmarks and open it'],
-        [`${COMMAND_PREFIX}tabs`, 'find one of your open tabs and go to it'],
-        ['Shift+Enter', 'open a link, or a bookmark, in a tab behind this one'],
-        ['a hint key', 'use that hint, while the hints are up'],
-        ['b  f  h', 'with the hints up: back, forward, home'],
-        ['1 2 3 …', 'with the hints up: your bookmarks toolbar'],
+        ['Esc', 'leave the hints or a list, then close the bar'],
       ]),
-      make('p', 'note', 'It finds the text you can see, and also the placeholder, label, tooltip '
-        + 'or picture description of things that have no text of their own. '
-        + 'The bar cannot open on Firefox\'s own pages, such as a new tab or the home page, '
-        + 'because Firefox lets no extension run there, and for the same reason the back, '
-        + `forward, home and bookmark hints in ${COMMAND_PREFIX}short are listed above the bar `
-        + 'rather than drawn beside the real buttons. '
-        + 'To use other keys for the bar, open about:addons → ⚙ → Manage Extension Shortcuts.'),
+
+      make('h2', '', 'Commands'),
+      rows(COMMANDS.map((command) => [COMMAND_PREFIX + command.name, command.summary])),
+
+      make('h2', '', 'While the hints are up'),
+      rows([
+        ['a hint key', 'use the hint it belongs to'],
+        ['b  f  h', 'back, forward, home'],
+        ['1 2 3 …', 'your bookmarks toolbar, left to right'],
+      ]),
+
+      make('p', 'note', 'Things with no text of their own are found by their placeholder, '
+        + 'label, tooltip or picture description. Firefox lets no extension run on its own '
+        + 'pages, so the bar will not open on a new tab, the home page, any about: page or '
+        + 'addons.mozilla.org. Other keys for the bar: about:addons → ⚙ → Manage Extension '
+        + 'Shortcuts.'),
     );
   }
 
@@ -1046,9 +1061,9 @@
       tag.textContent = h.code;
       tag.className = `tag${hintPending ? (h.code.startsWith(hintPending) ? ' hit' : ' dim') : ''}`;
       tag.style.display = 'block';
-      // Just above the top-left corner, so the hint doesn't sit on the words it belongs to.
+      // Just under the bottom-left corner: below the thing it belongs to, not over its words.
       tag.style.left = `${Math.max(0, Math.min(r.left, innerWidth - 26))}px`;
-      tag.style.top = `${Math.max(0, r.top - TAG_LIFT)}px`;
+      tag.style.top = `${Math.max(0, Math.min(r.bottom - TAG_OVER, innerHeight - 17))}px`;
     }
     for (let i = used; i < ui.tags.length; i++) ui.tags[i].style.display = 'none';
   }

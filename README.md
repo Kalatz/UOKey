@@ -83,8 +83,8 @@ nothing but a list of sites and their icons, and never more than 400 of them.
 
 ## Hints: !short
 
-Type `!short` and every link, button and field on the page gets a small key above it. Press that
-key on its own to use it. Typing `!short` again puts the hints away, so the command is a switch
+Type `!short` and every link, button and field on the page gets a small key just below it.
+Press that key on its own to use it. Typing `!short` again puts the hints away, so the command is a switch
 rather than a button; Esc does the same.
 
 Using a hint does not put the hints away. They are worked out again for the page as it now
@@ -115,6 +115,10 @@ Page hints are one letter each while they fit and two when they don't, so no hin
 start of another one and nothing waits to see what you type next. `b`, `f` and `h` are never
 given to the page, so they always mean back, forward and home. Esc puts the hints away and
 leaves the bar open; Esc again closes it.
+
+The bar is also kept at the very end of the page, so a popup the page throws up afterwards —
+a cookie wall, a newsletter box — cannot sit on top of it. The highest z-index there is still
+loses to whatever was added last and asked for the same, so being last is the part that matters.
 
 ## It stays until you say otherwise
 
