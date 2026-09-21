@@ -94,6 +94,11 @@ stands, so you can press one button after another without reaching for anything.
 the ones belonging to things you can click. The bar says how many it found, so a page where
 nothing is clickable says so rather than looking broken.
 
+Clickable means more than links and buttons. Most of the web builds its buttons out of plain
+`div`s with a click handler and a hand cursor, and those get hints too — if the page gives
+something the hand cursor, UOKey treats it as clickable. A wrapper with a hand cursor around a
+real link is left alone, so you get one hint for the link rather than two for the same thing.
+
 A `%` in front of a hint key still works, which is how this used to be done, but nothing needs
 it. Anything starting with `!` still goes to the bar as a command, which is why `!short` can
 switch the hints off from inside the hints.
@@ -111,6 +116,9 @@ a cookie wall, a newsletter box — cannot sit on top of it. The highest z-index
 loses to whatever was added last and asked for the same, so being last is the part that matters.
 
 ## It stays until you say otherwise
+
+Ctrl+Space backs out one step at a time, like Esc: the first press leaves the hints or a list,
+and only once there is nothing left to leave does it switch the bar off.
 
 Ctrl+Space is a switch for the whole browser, not for the page you happen to be on. Turn it on
 and the bar is there on every page you open and in every tab, until you turn it off again or

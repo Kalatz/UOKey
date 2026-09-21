@@ -65,7 +65,7 @@
   // Home row first, so the hints that get handed out first are the easiest to reach. All one
   // letter while they fit and all two when they don't, so no hint is the start of another.
   const HINT_ALPHABET = 'asdfghjklqwertyuiopzxcvbnm';
-  const MAX_HINTS = 400;
+  const MAX_HINTS = 676; // as many as two letters of the alphabet can name
   const TAG_OVER = 2; // px a hint sits over the bottom edge of its thing, so they read as one
   const COMMANDS = [
     { name: 'help', summary: 'what UOKey does, and every key it uses', fill: fillHelp },
@@ -312,8 +312,15 @@
   }
 
   function toggle() {
-    if (isOpen) close(true);
-    else open(deepActiveElement());
+    if (!isOpen) {
+      open(deepActiveElement());
+      return;
+    }
+    // One press backs out of whatever is running, the same way Esc does, and only switches the
+    // bar off once there is nothing left to back out of.
+    if (shortMode) startShort(); // a switch: this puts the hints away and tidies the box
+    else if (list) stopList();
+    else close(true);
   }
 
   // "Ctrl+Space", "Ctrl+Shift+F" → what a keydown for it looks like. `key` is the letter it types
@@ -806,7 +813,7 @@
 
       make('h2', '', 'The bar'),
       rows([
-        [shortcutText || 'No shortcut set', 'switch the bar on, and off again'],
+        [shortcutText || 'No shortcut set', 'leave the hints or a list, then switch the bar off'],
         ['Enter', 'click the orange match, or type in it when it is a field'],
         ['Shift+Enter', 'open a link in a tab behind this one'],
         ['Tab  ↓', 'next match'],
@@ -904,24 +911,39 @@
 
   // Everything clickable on the page, not only what is on screen: scrolling then brings hints
   // into view instead of renaming the ones already there.
+  //
+  // One walk down the page, in the order things appear in it. The hand cursor is inherited, so
+  // the parent's is carried down rather than asked for again, and a branch nobody can see is
+  // stepped over whole. Asking the page for a computed style is the expensive part, and this
+  // way each element is asked at most once.
   function clickableElements() {
     const found = [];
-    const roots = [document];
-    for (let i = 0; i < roots.length; i++) {
-      const root = roots[i];
-      for (const el of root.querySelectorAll('*')) {
-        if (el === ui.host) continue;
-        const shadow = shadowOf(el);
-        if (shadow) roots.push(shadow);
-      }
-      for (const el of root.querySelectorAll(ACTIONABLE)) {
-        if (found.length >= MAX_HINTS) return found;
-        if (el === ui.host || !el.checkVisibility(VISIBILITY)) continue;
+    const stack = [[document.documentElement, '']];
+    while (stack.length && found.length < MAX_HINTS) {
+      const [el, handAbove] = stack.pop();
+      if (el === ui.host || !el.checkVisibility(VISIBILITY)) continue;
+      const cursor = getComputedStyle(el).cursor;
+      if (clickable(el, cursor, handAbove)) {
         const r = el.getBoundingClientRect();
         if (r.width >= 2 && r.height >= 2) found.push(el);
       }
+      const shadow = shadowOf(el);
+      const kids = shadow ? [...shadow.children, ...el.children] : el.children;
+      for (let i = kids.length - 1; i >= 0; i--) stack.push([kids[i], cursor]);
     }
     return found;
+  }
+
+  // What counts as clickable: the things a browser treats that way, and anything the page has
+  // given a hand cursor to, which is how most of the web announces a button made out of a div.
+  // The search has always worked that way; the hints did not, and missed them.
+  //
+  // The hand is inherited, so only the element it starts at counts, and not when it is wrapped
+  // round a real link or button that is getting a hint of its own.
+  function clickable(el, cursor, handAbove) {
+    if (el.matches(ACTIONABLE)) return true;
+    if (cursor !== 'pointer' || handAbove === 'pointer') return false;
+    return !el.querySelector(ACTIONABLE);
   }
 
   // While the hints are up a hint key is pressed on its own. HINT_PREFIX still works in front of
