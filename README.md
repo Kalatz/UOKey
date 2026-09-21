@@ -69,7 +69,12 @@ rather than a button; Esc does the same.
 Using a hint does not put the hints away. They are worked out again for the page as it now
 stands, so you can press one button after another without reaching for anything.
 
-Back, forward, home and your bookmarks toolbar get keys too, in a strip above the bar:
+Every hint is also listed above the bar, in a table grouped into **Browser**, **Bookmarks
+toolbar** and **On this page**, each key next to the name of what it does. That list is the whole
+of it, including the links too far down the page to have a visible key on them yet, so `!short`
+tells you everything you can reach rather than only what is in front of you.
+
+Back, forward, home and your bookmarks toolbar get keys too:
 
 | Key | What it does |
 | --- | --- |
@@ -81,6 +86,9 @@ Back, forward, home and your bookmarks toolbar get keys too, in a strip above th
 A `%` in front of a hint key still works, which is how this used to be done, but nothing needs
 it. Anything starting with `!` still goes to the bar as a command, which is why `!short` can
 switch the hints off from inside the hints.
+
+While the hints are up the box is not for typing in, so the arrow keys, Home, End, Page Up and
+Page Down do nothing at all rather than dragging a cursor about inside it.
 
 The strip is UOKey's own, drawn in the page. Firefox doesn't let an extension draw anything on
 its real toolbar, so the hints can't sit next to the actual back, forward and bookmark buttons —
