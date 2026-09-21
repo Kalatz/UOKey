@@ -1,7 +1,7 @@
-// Firefox runs this when the UOKey shortcut is pressed (Ctrl+Shift+F unless changed in
+// Firefox runs this when the UOKey shortcut is pressed (Ctrl+Space unless changed in
 // about:addons → ⚙ → Manage Extension Shortcuts). The search bar lives in content.js, so pass
 // the request on to the page in the current tab.
-const DEFAULT_SHORTCUT = 'Ctrl+Shift+F';
+const DEFAULT_SHORTCUT = 'Ctrl+Space';
 
 // The shortcut as it stands, which is '' when it has been cleared in about:addons.
 async function currentShortcut() {
@@ -24,9 +24,9 @@ browser.commands.onCommand.addListener(async (command) => {
   if (tab) await tell(tab.id, 'toggle-finder');
 });
 
-// Firefox only recognises the shortcut when the keyboard types a Latin letter, so with a Greek
-// layout (or Russian, Hebrew, …) the listener above never runs. content.js watches for the keys
-// itself as well, and asks here which ones they are.
+// A shortcut written with a letter only reaches the listener above when the keyboard types that
+// Latin letter, so with a Greek layout (or Russian, Hebrew, …) it never runs. content.js watches
+// for the keys itself as well, and asks here which ones they are.
 browser.runtime.onMessage.addListener((message) => {
   if (message === 'get-shortcut') return currentShortcut();
   return undefined;

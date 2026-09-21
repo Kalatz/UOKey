@@ -1,7 +1,7 @@
 /*
  * UOKey: click things on a page without the mouse.
  *
- * Press Ctrl+Shift+F: a small search bar opens at the bottom of the page. Type part of the text
+ * Press Ctrl+Space: a small search bar opens at the bottom of the page. Type part of the text
  * of a link, button or field (its visible text, placeholder, label or image alt text) and every
  * match is highlighted. Enter clicks the current match, or puts the cursor in it when it is a
  * text field. Tab / Shift+Tab (or Down / Up) move between matches, Esc closes the bar.
@@ -39,7 +39,7 @@
     opacityProperty: true, visibilityProperty: true, checkOpacity: true, checkVisibilityCSS: true,
   };
   const IGNORABLE = /[\p{M}\p{Cf}]/gu; // accents, soft hyphens, zero-width and direction marks
-  const DEFAULT_SHORTCUT = 'Ctrl+Shift+F';
+  const DEFAULT_SHORTCUT = 'Ctrl+Space';
   const SAME_PRESS = 1000; // ms; Firefox's own shortcut arriving after we handled the same keys
   // Where the keys Firefox lets a shortcut use sit on the keyboard, for the ones that aren't
   // letters or digits.
@@ -203,8 +203,9 @@
     else open(deepActiveElement());
   }
 
-  // "Ctrl+Shift+F" → what a keydown for it looks like. `key` is the letter it types on a Latin
-  // keyboard; `code` is where that key sits, whatever the keyboard types there.
+  // "Ctrl+Space", "Ctrl+Shift+F" → what a keydown for it looks like. `key` is the letter it types
+  // on a Latin keyboard, if it is a letter at all; `code` is where that key sits, whatever the
+  // keyboard types there.
   function parseShortcut(text) {
     const parts = String(text).split('+').filter(Boolean);
     const name = parts.pop() || '';
@@ -224,10 +225,11 @@
     };
   }
 
-  // Firefox only fires the shortcut when the keyboard types the letter it is written with, so
-  // with a Greek layout Ctrl+Shift+F types Φ and nothing happens. Catch the keys here as well:
-  // by the letter while the keyboard types Latin (so Caps Lock and Shift don't matter), and by
-  // the key's place on the keyboard while it types anything else.
+  // Firefox only fires a shortcut written with a letter when the keyboard types that letter, so a
+  // shortcut changed to Ctrl+Shift+F does nothing on a Greek layout, where those keys type Φ. Catch
+  // the keys here as well: by the letter while the keyboard types Latin (so Caps Lock and Shift
+  // don't matter), and by the key's place on the keyboard while it types anything else. Space is
+  // in the same place on every keyboard, so the default shortcut is caught by its place alone.
   function matchesShortcut(e) {
     if (!shortcut || e.ctrlKey !== shortcut.ctrl || e.altKey !== shortcut.alt
         || e.shiftKey !== shortcut.shift || e.metaKey !== shortcut.meta) return false;
@@ -610,6 +612,8 @@
       ]),
       make('p', 'note', 'It finds the text you can see, and also the placeholder, label, tooltip '
         + 'or picture description of things that have no text of their own. '
+        + 'The bar cannot open on Firefox\'s own pages, such as a new tab or the home page, '
+        + 'because Firefox lets no extension run there. '
         + 'To use other keys for the bar, open about:addons → ⚙ → Manage Extension Shortcuts.'),
     );
   }

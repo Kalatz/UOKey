@@ -2,14 +2,14 @@
 
 A Firefox extension that lets you click things with the keyboard instead of the mouse.
 
-Press **Ctrl+Shift+F**. A small search bar opens at the bottom of the page. Type part of the text
+Press **Ctrl+Space**. A small search bar opens at the bottom of the page. Type part of the text
 of a link, button or field, for example `searc` for Amazon's "Search Amazon" box or `sharp` for its
 "Start looking sharp" card. Every match is highlighted, and **Enter** clicks the orange one. If the
 match is a text field, Enter puts the cursor in it instead so you can type.
 
 | Keys | What they do |
 | --- | --- |
-| Ctrl+Shift+F | open the bar (press again to close it) |
+| Ctrl+Space | open the bar (press again to close it) |
 | Enter | click the orange match, or start typing in it if it is a field |
 | Tab or ↓ | next match |
 | Shift+Tab or ↑ | previous match |
@@ -29,11 +29,12 @@ searches field placeholders, labels, tooltips and image descriptions (alt text).
 and final sigma don't matter, so `αναζητηση`, `ΑΝΑΖΗΤΗΣΗ` and `Αναζήτηση` all find each other, and
 `οδος` finds `Οδός`.
 
-The shortcut works whatever your keyboard is set to type. Firefox only recognises Ctrl+Shift+F when
-the keyboard makes a Latin `f`, so on a Greek layout, where those keys type `Φ`, UOKey watches for
-them itself, going by where the keys are rather than by what they type. Caps Lock makes no
-difference either. If you change the shortcut in `about:addons`, the new one is watched for in the
-same way.
+The shortcut works whatever your keyboard is set to type. The spacebar is in the same place on
+every keyboard, so Ctrl+Space works on all of them. A shortcut you change to a letter in
+`about:addons` works everywhere too: Firefox on its own would only recognise Ctrl+Shift+F when the
+keyboard makes a Latin `f`, so on a Greek layout, where those keys type `Φ`, UOKey watches for them
+itself, going by where the keys are rather than by what they type. Caps Lock makes no difference
+either.
 
 If Firefox's address bar has the keyboard when you press the shortcut, the bar says **Press F6 to
 type here**: Firefox doesn't let a page take the keyboard from its own toolbar, and F6 moves it to
@@ -60,8 +61,9 @@ it. Signing is free and the extension can stay private:
 
 ## Limitations
 
-- Firefox doesn't let extensions run on its own pages: `about:` pages, addons.mozilla.org, the PDF
-  viewer and Reader View.
+- Firefox doesn't let extensions run on its own pages, so the bar doesn't open on a new tab or the
+  home page (`about:newtab`, `about:home`), on any other `about:` page, on addons.mozilla.org, or in
+  the PDF viewer and Reader View. Nothing an extension can do changes this.
 - Links inside embedded frames (iframes) aren't searched. On a non-Latin layout the shortcut also
   needs the cursor to be outside an embedded frame, because that is where UOKey can watch for it.
 - Text that is part of a picture can only be found if the picture has alt text.

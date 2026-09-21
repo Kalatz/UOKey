@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "UOKey",
-  "version": "0.4.0",
-  "description": "Use the keyboard instead of the mouse: press Ctrl+Shift+F, type the text of a link, button or field, then press Enter to click it.",
+  "version": "0.5.0",
+  "description": "Use the keyboard instead of the mouse: press Ctrl+Space, type the text of a link, button or field, then press Enter to click it.",
   "icons": {
     "48": "icons/icon.svg",
     "96": "icons/icon.svg"
@@ -13,7 +13,7 @@
   "commands": {
     "toggle-finder": {
       "suggested_key": {
-        "default": "Ctrl+Shift+F"
+        "default": "Ctrl+Space"
       },
       "description": "Open or close the UOKey search bar"
     }
