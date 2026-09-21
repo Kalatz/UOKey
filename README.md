@@ -32,18 +32,6 @@ opens the one that is highlighted, and Esc goes back to searching the page.
 It is the same typing you already use for links and buttons, so there is nothing new to learn,
 and it covers every bookmark you have rather than only the ones on the toolbar.
 
-## The new tab and home page
-
-Firefox doesn't let an extension run on `about:newtab` or `about:home`, so the bar could never
-open on the page a new tab starts at. UOKey now stands in for that page instead: new tabs, and
-the home button, open a page UOKey serves, where the bar and the hints work normally. It shows
-your most visited sites and your bookmarks toolbar.
-
-Firefox asks you before it lets any extension take over those, and you can hand them back at any
-time — the new tab page under `about:addons`, and the home page under **Settings → Home**.
-
-Reading your most visited sites is what the **topSites** permission is for.
-
 ## Hints: !short
 
 Type `!short` and every link, button and field on the page gets a small key above it. Press `%`
@@ -113,9 +101,9 @@ it. Signing is free and the extension can stay private:
 
 ## Limitations
 
-- Firefox doesn't let extensions run on its own pages. UOKey works around that for the new tab and
-  home page by standing in for them, but there is no way around it for other `about:` pages,
-  addons.mozilla.org, the PDF viewer or Reader View: the bar will not open there.
+- Firefox doesn't let extensions run on its own pages, so the bar doesn't open on a new tab or the
+  home page (`about:newtab`, `about:home`), on any other `about:` page, on addons.mozilla.org, or in
+  the PDF viewer and Reader View. Nothing an extension can do changes this.
 - For the same reason, `!short` can't put its hints on Firefox's own toolbar. Back, forward, home
   and the bookmarks get a strip inside the page instead, and the keys still work.
 - Links inside embedded frames (iframes) aren't searched. On a non-Latin layout the shortcut also

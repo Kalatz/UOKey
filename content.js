@@ -708,11 +708,10 @@
       ]),
       make('p', 'note', 'It finds the text you can see, and also the placeholder, label, tooltip '
         + 'or picture description of things that have no text of their own. '
-        + 'Firefox lets no extension run on its own pages, so UOKey stands in for the new tab '
-        + 'and the home page rather than running on Firefox\'s. It still cannot open on other '
-        + 'about: pages or on addons.mozilla.org, and for the same reason the back, forward, '
-        + `home and bookmark hints in ${COMMAND_PREFIX}short sit in a strip of their own rather `
-        + 'than beside the real buttons. '
+        + 'The bar cannot open on Firefox\'s own pages, such as a new tab or the home page, '
+        + 'because Firefox lets no extension run there, and for the same reason the back, '
+        + `forward, home and bookmark hints in ${COMMAND_PREFIX}short sit in a strip of their `
+        + 'own rather than beside the real buttons. '
         + 'To use other keys for the bar, open about:addons → ⚙ → Manage Extension Shortcuts.'),
     );
   }
