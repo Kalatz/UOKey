@@ -135,6 +135,17 @@ Reading your bookmarks, your open tabs and your home page setting is why UOKey a
 **bookmarks**, **tabs** and **browser settings** permissions when you install it, and keeping
 site icons is what **storage** is for. It only reads them, and nothing is sent anywhere.
 
+## Running on the pages you visit
+
+UOKey works by reading the page in front of you — the text of its links, buttons and fields — so
+Firefox needs your permission to let it onto the sites you visit. That is the **access your data
+for all websites** permission, and without it UOKey can do nothing at all: the bar will not open
+anywhere, because the part of it that lives in the page never starts.
+
+Firefox asks when you install it. If it was turned down, or turned off later, UOKey's own
+preferences page says so and has a button to ask again: `about:addons` → UOKey → **Preferences**.
+The same page under **Permissions** has Firefox's own switch for it.
+
 The bar keeps out of the way: it opens as nothing but the box to type in, centred at the bottom of
 the page, and says nothing about commands or keys until you ask. The match count and what Enter
 will do appear beside the box once you start typing, without ever moving it off centre.

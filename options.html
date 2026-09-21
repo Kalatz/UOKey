@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>UOKey</title>
+<style>
+  :root { color-scheme: light dark; --bg: #1f2125; --text: #e8e8ea; --dim: #9aa0a8;
+    --line: #2e3238; --key: #ffd400; --accent: #ff8a00; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #fff; --text: #1f2125; --dim: #6b7079; --line: #e2e4e8; }
+  }
+  body { margin: 0; padding: 18px; background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, sans-serif; max-width: 34em; }
+  h1 { margin: 0 0 4px; font-size: 15px; }
+  p { margin: 0 0 12px; color: var(--dim); }
+  #state { color: var(--text); }
+  #state.off { color: var(--accent); }
+  button { font: inherit; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+    background: var(--key); color: #1f2125; border: 0; font-weight: 600; }
+  button:hover { background: var(--accent); }
+  kbd { background: var(--key); color: #1f2125; border-radius: 4px; padding: 1px 5px;
+    font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+</head>
+<body>
+  <h1>Running on the pages you visit</h1>
+  <p>UOKey works by reading the page in front of you: the text of its links, buttons and fields,
+    so that <kbd>Ctrl</kbd> <kbd>Space</kbd> can find them. Firefox only lets it do that on sites
+    you have allowed.</p>
+  <p id="state">Checking…</p>
+  <button id="grant" hidden>Allow UOKey on all sites</button>
+</body>
+<script src="options.js"></script>
+</html>
