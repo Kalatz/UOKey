@@ -52,6 +52,11 @@
     Up: 'ArrowUp', Down: 'ArrowDown', Left: 'ArrowLeft', Right: 'ArrowRight',
   };
   const ONE_LETTER_DELAY = 200; // ms to wait for a second letter before searching for just one
+  // A page that answers being given the keyboard back by taking it again, over and over, is a
+  // focus trap rather than a page opening something: this many goes that close together and the
+  // bar stops pulling, and works from wherever the keys land instead.
+  const FOCUS_FIGHT_LIMIT = 6;
+  const FOCUS_FIGHT_WINDOW = 400; // ms
   const REINDEX_AFTER = 1000; // ms; while typing, re-read a page that keeps changing at most this often
   const MAX_SCAN = 3000; // text occurrences examined per search
   const MAX_MATCHES = 300; // matches kept per search
@@ -184,6 +189,11 @@
   let keyToggleTime = -Infinity; // no keys of ours caught yet, however new the page is
   let commandMatches = [];
   let leaving = false; // the page is going; closing the bar now is not the user's doing
+  let claimingFocus = false; // the bar is handing the keyboard to the page on purpose
+  let focusFights = 0; // times running the page has taken the keyboard straight back
+  let focusFightAt = 0;
+  let layered = -1; // how many dialogs and popovers the page had in the top layer, last look
+  let layerDirty = true; // the page has changed since, so that count is worth taking again
   let echo = true; // whether a change here is the user's doing and should reach the other tabs
   let shortMode = false;
   let hints = [];
@@ -273,7 +283,11 @@
       }
       return;
     }
-    if (!isOpen || e.target !== ui.host) return;
+    if (!isOpen) return;
+    // While the bar is open the keys are the bar's, wherever they were typed. They usually land
+    // in the bar's own box, but a popup can be holding the keyboard, and a dialog opened with
+    // showModal() shuts the rest of the page out of being focused at all — so going by where a
+    // key landed would leave the bar on screen and dead.
     e.stopImmediatePropagation(); // keep the page's own keyboard shortcuts out of it
     if (!e.isTrusted || e.isComposing) return;
     if (shortMode && handleHintKey(e)) return;
@@ -293,7 +307,29 @@
       } else if (shortMode) stopShort(); // Esc puts the hints away before it closes the bar
       else if (list) stopList(); // and leaves the list before it closes the bar
       else close(true);
+    } else if (!barHasFocus()) {
+      typeIntoBar(e);
     }
+  }
+
+  // The bar is open but the keyboard is elsewhere, so the box is typed into by hand. What is
+  // typed goes on the end, which is where the cursor would have been anyway, and Backspace
+  // takes the last of it off again.
+  function typeIntoBar(e) {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      ui.input.value = ui.input.value.slice(0, -1);
+    } else if (e.key.length === 1) {
+      e.preventDefault();
+      ui.input.value += e.key;
+    } else {
+      return; // a key with nothing to add to the box: F5, a modifier on its own, …
+    }
+    // The page may only have blurred the box rather than be holding on to it, in which case
+    // this is the last key that has to be put there by hand.
+    if (mayClaimFocus()) focusBar();
+    onTyped();
   }
 
   function onKeyUp(e) {
@@ -308,7 +344,7 @@
   }
 
   function stopIfOurs(e) {
-    if (isOpen && e.target === ui.host) e.stopImmediatePropagation();
+    if (isOpen) e.stopImmediatePropagation();
   }
 
   function toggle() {
@@ -383,12 +419,13 @@
       addEventListener('resize', scheduleRender);
       addEventListener('mousedown', onMouseDown, true);
       addEventListener('focus', onPageFocus);
+      addEventListener('focusin', onPageFocusIn, true);
       // Read the page while the user starts typing, so the first key is quick.
       requestIdleCallback(() => {
         if (isOpen) ensureIndex();
       }, { timeout: 300 });
     }
-    ui.input.focus({ preventScroll: true });
+    focusBar();
     // A page can't take the keyboard from Firefox's own toolbar (e.g. the address bar). F6 moves
     // it to the page, and onPageFocus then puts it in the bar.
     ui.input.placeholder = document.hasFocus() ? PLACEHOLDER : 'Press F6 to type here';
@@ -396,8 +433,40 @@
 
   // The page got the keyboard (back) while the bar is open: the cursor belongs in the bar.
   function onPageFocus() {
-    if (document.activeElement !== ui.host) ui.input.focus({ preventScroll: true });
+    if (!barHasFocus()) focusBar();
     ui.input.placeholder = PLACEHOLDER;
+  }
+
+  // Something in the page took the keyboard away — a cookie wall or a newsletter box opening
+  // and putting the cursor in itself, or the focus trap such a thing usually comes with. The
+  // bar takes it back, unless the bar was the one handing it over. A page that will not let go
+  // is left holding it rather than being fought frame after frame; the keys still reach the bar
+  // either way, wherever they land (see onKeyDown), so the bar stays usable regardless.
+  function onPageFocusIn(e) {
+    if (!isOpen || claimingFocus || e.target === ui.host) return;
+    layerDirty = true; // whatever took the keyboard has probably just gone up on top, too
+    scheduleRender();
+    const now = performance.now();
+    focusFights = now - focusFightAt < FOCUS_FIGHT_WINDOW ? focusFights + 1 : 1;
+    focusFightAt = now;
+    if (mayClaimFocus()) focusBar();
+  }
+
+  // Whether pulling the keyboard back is worth another go: a page answering every pull with one
+  // of its own is left to it, until it has been quiet long enough to be worth trying again.
+  function mayClaimFocus() {
+    return focusFights <= FOCUS_FIGHT_LIMIT
+      || performance.now() - focusFightAt > FOCUS_FIGHT_WINDOW;
+  }
+
+  // The bar's own box holds the keyboard. The shadow root is closed, so as far as the page and
+  // document.activeElement are concerned the keyboard is on the host element.
+  function barHasFocus() {
+    return document.activeElement === ui.host;
+  }
+
+  function focusBar() {
+    ui.input.focus({ preventScroll: true });
   }
 
   function close(restoreFocus) {
@@ -409,11 +478,15 @@
     removeEventListener('resize', scheduleRender);
     removeEventListener('mousedown', onMouseDown, true);
     removeEventListener('focus', onPageFocus);
+    removeEventListener('focusin', onPageFocusIn, true);
     cancelAnimationFrame(frame);
     frame = 0;
     clearTimeout(searchTimer);
     searchTimer = 0;
-    ui.host.remove();
+    ui.host.remove(); // which takes it out of the top layer as well, keyboard and all
+    layered = -1;
+    layerDirty = true;
+    focusFights = 0;
     matches = [];
     index = null;
     shortMode = false;
@@ -437,7 +510,10 @@
     // The page's CSS can't reach inside a closed shadow root, and the inline !important
     // styles keep it from hiding or moving the host element.
     const host = document.createElement('uokey-finder');
-    host.style.cssText = 'all: initial !important; position: fixed !important; inset: 0 !important;'
+    // display is spelled out because the bar is shown as a popover (see stayOnTop), and a
+    // popover is display: none until it is: the bar is on screen whether that worked or not.
+    host.style.cssText = 'all: initial !important; display: block !important;'
+      + ' position: fixed !important; inset: 0 !important;'
       + ' z-index: 2147483647 !important; pointer-events: none !important;';
     const root = host.attachShadow({ mode: 'closed' });
 
@@ -469,23 +545,13 @@
     dock.append(panel, row); // on top the dock turns over, so the panel is always the far side
     root.append(make('style', '', CSS), layer, dock);
 
-    input.addEventListener('input', () => {
-      clearTimeout(searchTimer);
-      searchTimer = 0;
-      const text = fold(input.value);
-      // One letter matches half the page, which is slow; wait a moment for the next one.
-      // Commands search nothing, so they answer straight away.
-      if (text.length === 1 && !text.startsWith(COMMAND_PREFIX)) {
-        searchTimer = setTimeout(runSearch, ONE_LETTER_DELAY);
-      } else {
-        runSearch();
-      }
-    });
+    input.addEventListener('input', onTyped);
     // Clicking the bar or the panel must not take focus away from the input.
     dock.addEventListener('mousedown', (e) => {
       if (e.target !== input) e.preventDefault();
     });
     const observer = new MutationObserver((records) => {
+      layerDirty = true;
       if (!indexDirty) {
         indexDirty = records.some((r) => r.type !== 'attributes' || INDEXED_ATTRIBUTES.has(r.attributeName));
       }
@@ -495,6 +561,20 @@
       host, layer, outline, dock, bar, panel, input, count, extras, action, verb, detail,
       observer, boxes: [], tags: [],
     };
+  }
+
+  // Something new in the box, typed into it or put there by typeIntoBar.
+  function onTyped() {
+    clearTimeout(searchTimer);
+    searchTimer = 0;
+    const text = fold(ui.input.value);
+    // One letter matches half the page, which is slow; wait a moment for the next one.
+    // Commands search nothing, so they answer straight away.
+    if (text.length === 1 && !text.startsWith(COMMAND_PREFIX)) {
+      searchTimer = setTimeout(runSearch, ONE_LETTER_DELAY);
+    } else {
+      runSearch();
+    }
   }
 
   function showStatus() {
@@ -608,13 +688,64 @@
 
   // The highest z-index there is still loses to anything the page adds after us and asks for
   // the same, so the bar is put back at the end whenever something else takes that place.
-  // Moving it takes the keyboard with it, which has to be handed back.
+  //
+  // A dialog opened with showModal(), and anything shown as a popover, is not in the page's
+  // stacking order at all: Firefox puts it in the top layer, above every z-index there is, so
+  // no amount of being last wins against it. The bar is shown as a popover itself for that, and
+  // the top layer goes by the same rule — last one shown is on top — so it is shown again
+  // whenever the page has put something new up there.
+  //
+  // Either move takes the keyboard with it, so it is handed back afterwards.
   function stayOnTop() {
     const top = document.documentElement;
-    if (!top || ui.host === top.lastElementChild) return;
-    const had = document.activeElement === ui.host;
-    top.append(ui.host);
-    if (had) ui.input.focus({ preventScroll: true });
+    if (!top) return;
+    const displaced = ui.host !== top.lastElementChild;
+    // Scrolling moves nothing about, so the top layer is only counted again once the page has
+    // actually changed.
+    if (!displaced && !layerDirty) return;
+    layerDirty = false;
+    const count = topLayerCount();
+    if (!displaced && count === layered) return;
+    const had = barHasFocus();
+    claimingFocus = true; // any blur the move causes is the bar's own doing, not the page's
+    try {
+      // Taking it out of the page takes it out of the top layer too, so it goes back up after.
+      if (displaced) top.append(ui.host);
+      showOnTopLayer();
+    } finally {
+      claimingFocus = false;
+    }
+    layered = topLayerCount();
+    if (had && !barHasFocus()) focusBar();
+  }
+
+  // How many dialogs and popovers are up, the bar's own included: not which is on top, which
+  // nothing can ask, but enough to notice that the page has put something new there.
+  function topLayerCount() {
+    try {
+      return document.querySelectorAll(':modal, :popover-open').length;
+    } catch {
+      return 0; // an older Firefox that doesn't know the selectors has no top layer to lose to
+    }
+  }
+
+  function showOnTopLayer() {
+    if (typeof ui.host.showPopover !== 'function') return;
+    try {
+      if (ui.host.popover !== 'manual') ui.host.popover = 'manual';
+      hideFromTopLayer();
+      ui.host.showPopover();
+    } catch {
+      /* popovers aren't allowed here: the bar still sits at the end of the page */
+    }
+  }
+
+  function hideFromTopLayer() {
+    try {
+      if (ui.host.matches(':popover-open')) ui.host.hidePopover();
+    } catch {
+      /* it isn't up there */
+    }
   }
 
   function addBox() {
@@ -683,7 +814,7 @@
     }
     activate(m, rect);
     if (!isOpen) return; // it was a link, and the page is on its way somewhere else
-    ui.input.focus({ preventScroll: true });
+    focusBar();
     indexDirty = true; // whatever was clicked has probably changed the page
     if (clear) {
       ui.input.value = ''; // done with: the box is ready for the next thing rather than the last
@@ -701,7 +832,18 @@
     return link && /^https?:/i.test(link.href) ? link.href : '';
   }
 
+  // Clicking something means putting the keyboard on it first, the way a mouse would, and
+  // that must not be read as the page stealing it (see onPageFocusIn).
   function activate(m, rect) {
+    claimingFocus = true;
+    try {
+      click(m, rect);
+    } finally {
+      claimingFocus = false;
+    }
+  }
+
+  function click(m, rect) {
     let el = m.target;
     const control = el.localName === 'label' ? el.control : null;
     if (control && (isTypeable(control) || control.localName === 'select')) el = control;

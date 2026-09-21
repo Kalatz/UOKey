@@ -115,6 +115,11 @@ The bar is also kept at the very end of the page, so a popup the page throws up 
 a cookie wall, a newsletter box — cannot sit on top of it. The highest z-index there is still
 loses to whatever was added last and asked for the same, so being last is the part that matters.
 
+A dialog the page opens with `showModal()`, and anything it shows as a popover, isn't in the
+page's stacking order at all: Firefox puts it in a layer of its own above everything. Being last
+in the page wins nothing against that, so the bar goes into that layer too, and back on top of it
+whenever the page puts something new there.
+
 ## It stays until you say otherwise
 
 Ctrl+Space backs out one step at a time, like Esc: the first press leaves the hints or a list,
@@ -127,7 +132,15 @@ on the page you land on.
 
 Clicking a link or a button with it, using a hint, or losing the keyboard to something on the
 page doesn't put it away either. Only Ctrl+Space again, Esc, or a real mouse click somewhere on
-the page.
+the page. Reloading the page doesn't, and nor does leaving a tab alone long enough for Firefox to
+put UOKey to sleep: the switch is kept until Firefox itself closes.
+
+Popups have a habit of taking the keyboard as they open, and some hold on to it. The bar takes it
+back, and if the page won't let go it stops pulling rather than fighting it forever — the keys go
+to the bar either way. **While the bar is open, what you type is the bar's**, wherever the cursor
+happens to be, so a cookie wall that has grabbed the keyboard, or a modal dialog that Firefox
+won't let the bar be focused behind, leaves the bar working all the same. Typing goes on the end
+of the box and Backspace takes it off again.
 
 The one thing that still closes it by itself is Enter on a text field, because the cursor has to
 be in the field rather than in the bar for you to be able to type. Enter on anything else leaves

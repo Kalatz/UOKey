@@ -28,17 +28,43 @@ browser.commands.onCommand.addListener(async (command) => {
 // Latin letter, so with a Greek layout (or Russian, Hebrew, …) it never runs. content.js watches
 // for the keys itself as well, and asks here which ones they are.
 // Whether the bar is meant to be up. Ctrl+Space is a switch, and a switch that only held for
-// the page it was pressed on would have to be pressed again on every page. Kept here in memory
-// rather than on disk, so it lasts as long as Firefox is running and no longer.
-let barWanted = false;
+// the page it was pressed on would have to be pressed again on every page.
+//
+// Firefox stops this script when nothing has happened for a while and starts it again when
+// something does, so a variable on its own forgets the switch a minute after it was thrown, and
+// the next page to load is told the bar is off. Session storage is kept for it while the script
+// is away and emptied when Firefox closes, which is exactly how long the switch is meant to last.
+const BAR_STATE = 'barWanted';
+let barWanted = null; // what session storage says, once it has been read
+
+async function barIsWanted() {
+  if (barWanted === null) {
+    try {
+      const kept = await browser.storage.session.get(BAR_STATE);
+      barWanted = !!kept[BAR_STATE];
+    } catch {
+      barWanted = false; // no session storage here: the switch lasts only while this script does
+    }
+  }
+  return barWanted;
+}
+
+async function rememberBar(on) {
+  barWanted = !!on;
+  try {
+    await browser.storage.session.set({ [BAR_STATE]: barWanted });
+  } catch {
+    /* nothing to do: the switch still holds while this script is running */
+  }
+  return barWanted;
+}
 
 browser.runtime.onMessage.addListener((message, sender) => {
   if (message === 'get-shortcut') return currentShortcut();
-  if (message === 'bar-state') return Promise.resolve(barWanted);
+  if (message === 'bar-state') return barIsWanted();
   if (message && message.bar !== undefined) {
-    barWanted = !!message.bar;
-    spreadBar(barWanted, sender);
-    return Promise.resolve(barWanted);
+    spreadBar(!!message.bar, sender);
+    return rememberBar(message.bar);
   }
   if (message === 'get-marks') return allBookmarks();
   if (message === 'get-tabs') return openTabs();
