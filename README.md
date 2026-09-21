@@ -15,10 +15,40 @@ match is a text field, Enter puts the cursor in it instead so you can type.
 | Shift+Tab or ↑ | previous match |
 | Esc | close the bar and go back to where you were |
 | !help | show all of this in the bar itself |
+| !short | put a hint key on everything clickable |
+| % then a hint key | use that hint, while the hints are up |
 
 Anything typed starting with `!` is a command for UOKey instead of text to look for on the page, so
 `!help` opens a panel above the bar with what UOKey does and every key it uses, the shortcut named
 as it is actually set. Typing `!` on its own lists the commands there are.
+
+## Hints: !short
+
+Type `!short` and every link, button and field on the page gets a small key above it. Press `%`
+and then that key to use it. Ordinary typing still searches the page, which is what the `%` is
+for: it marks the next key or two as a hint rather than text to find.
+
+Back, forward, home and your bookmarks toolbar get keys too, in a strip above the bar:
+
+| Key | What it does |
+| --- | --- |
+| %b | back |
+| %f | forward |
+| %h | your home page |
+| %1 %2 %3 … | the bookmarks on your bookmarks toolbar, left to right |
+
+The strip is UOKey's own, drawn in the page. Firefox doesn't let an extension draw anything on
+its real toolbar, so the hints can't sit next to the actual back, forward and bookmark buttons —
+but the keys do the real thing.
+
+Page hints are one letter each while they fit and two when they don't, so no hint is ever the
+start of another one and nothing waits to see what you type next. `b`, `f` and `h` are never
+given to the page, so they always mean back, forward and home. Esc puts the hints away and
+leaves the bar open; Esc again closes it.
+
+Reading your bookmarks toolbar and your home page setting is why UOKey asks for the **bookmarks**
+and **browser settings** permissions when you install it. It only reads them, and nothing is
+stored or sent anywhere.
 
 The bar keeps out of the way: it opens as nothing but the box to type in, centred at the bottom of
 the page, and says nothing about commands or keys until you ask. The match count and what Enter
@@ -64,6 +94,8 @@ it. Signing is free and the extension can stay private:
 - Firefox doesn't let extensions run on its own pages, so the bar doesn't open on a new tab or the
   home page (`about:newtab`, `about:home`), on any other `about:` page, on addons.mozilla.org, or in
   the PDF viewer and Reader View. Nothing an extension can do changes this.
+- For the same reason, `!short` can't put its hints on Firefox's own toolbar. Back, forward, home
+  and the bookmarks get a strip inside the page instead, and the keys still work.
 - Links inside embedded frames (iframes) aren't searched. On a non-Latin layout the shortcut also
   needs the cursor to be outside an embedded frame, because that is where UOKey can watch for it.
 - Text that is part of a picture can only be found if the picture has alt text.

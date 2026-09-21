@@ -5,6 +5,10 @@
  * of a link, button or field (its visible text, placeholder, label or image alt text) and every
  * match is highlighted. Enter clicks the current match, or puts the cursor in it when it is a
  * text field. Tab / Shift+Tab (or Down / Up) move between matches, Esc closes the bar.
+ *
+ * Type !short instead and every clickable thing on the page gets a hint key, with back,
+ * forward, home and the bookmarks toolbar in a strip above the bar. % then the hint key uses
+ * one; ordinary typing still searches the page.
  */
 (() => {
   'use strict';
@@ -57,8 +61,19 @@
   // Typing this instead of text to find asks UOKey itself for something. No page text starts
   // with it, so nothing that can be clicked is ever out of reach behind it.
   const COMMAND_PREFIX = '!';
+  // In !short, this marks the next key or two as a hint rather than text to find on the page.
+  const HINT_PREFIX = '%';
+  // a-z without b, f and h, which back, forward and home take. Page hints are drawn from this,
+  // all one letter while they fit and all two when they don't, so no hint is the start of another.
+  const HINT_ALPHABET = 'acdegijklmnopqrstuvwxyz';
+  const BOOKMARK_KEYS = '1234567890'; // digits keep bookmarks out of the page hints' way
+  const MAX_HINTS = 400;
+  const TAG_LIFT = 17; // px a hint sits above its thing; its own height, so they don't overlap
   const COMMANDS = [
     { name: 'help', summary: 'what UOKey does, and every key it uses', fill: fillHelp },
+    { name: 'short',
+      summary: `a hint key on everything clickable; ${HINT_PREFIX} then the key uses one`,
+      run: startShort },
   ];
 
   // Firefox lets extensions look inside closed shadow roots as well as open ones.
@@ -78,7 +93,7 @@
       display: flex; flex-direction: column; align-items: center; gap: 8px;
       max-width: calc(100vw - 32px); pointer-events: none; }
     .dock.top { top: 18px; bottom: auto; flex-direction: column-reverse; }
-    .bar, .panel, .extras { box-sizing: border-box; max-width: 100%; border-radius: 12px;
+    .bar, .panel, .extras, .strip { box-sizing: border-box; max-width: 100%; border-radius: 12px;
       background: #1f2125; color: #e8e8ea; pointer-events: auto;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08); }
     .row { position: relative; display: flex; }
@@ -108,6 +123,19 @@
     .panel dt { color: #ffb13b; font-weight: 600; white-space: nowrap; }
     .panel dd { margin: 0; color: #c9cdd4; }
     .panel .note { margin: 12px 0 0; color: #7d828b; font-size: 12px; }
+    /* The strip stands in for Firefox's own toolbar, which an extension cannot draw on. */
+    .strip { display: none; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+      padding: 8px 12px; font: 12px/1.3 system-ui, sans-serif; }
+    .strip.on { display: flex; }
+    .sitem { display: flex; align-items: center; gap: 5px; min-width: 0; }
+    .skey, .tag { background: #ffd400; color: #1f2125; border-radius: 4px; padding: 1px 5px;
+      font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .slabel { color: #c9cdd4; max-width: 16ch; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    .more { color: #7d828b; }
+    .tag { position: absolute; display: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
+    .tag.dim { opacity: 0.25; }
+    .tag.hit { background: #ff8a00; }
     @media (max-width: 700px) { .detail { display: none; } }
   `;
 
@@ -126,6 +154,11 @@
   let shortcut = parseShortcut(DEFAULT_SHORTCUT);
   let keyToggleTime = -Infinity; // no keys of ours caught yet, however new the page is
   let commandMatches = [];
+  let shortMode = false;
+  let hints = [];
+  let hintPending = null; // null: not in a hint; '' or more: keys typed since HINT_PREFIX
+  let places = { home: '', bookmarks: [] }; // what background.js knows and the page can't
+  let placesAsked = false;
 
   // The keyboard shortcut is handled by background.js, which tells the page to open or close
   // the bar. That way it works wherever the focus is, and can be changed in Firefox's settings.
@@ -172,6 +205,7 @@
     if (!isOpen || e.target !== ui.host) return;
     e.stopImmediatePropagation(); // keep the page's own keyboard shortcuts out of it
     if (!e.isTrusted || e.isComposing) return;
+    if (shortMode && handleHintKey(e)) return;
     if (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       step(e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1);
@@ -179,6 +213,7 @@
       e.preventDefault();
       swallowKeyUp = e.code;
       if (e.key === 'Enter') activateCurrent();
+      else if (shortMode) stopShort(); // Esc puts the hints away before it closes the bar
       else close(true);
     }
   }
@@ -251,6 +286,7 @@
       matches = [];
       commandMatches = [];
       current = -1;
+      stopShort();
       hidePanel();
       showStatus();
       render();
@@ -292,6 +328,9 @@
     ui.host.remove();
     matches = [];
     index = null;
+    shortMode = false;
+    hints = [];
+    hintPending = null;
     const previous = returnFocus;
     returnFocus = null;
     if (restoreFocus && previous && previous !== document.body && previous.isConnected) {
@@ -335,8 +374,11 @@
     const row = make('div', 'row');
     row.append(bar, extras);
     const panel = make('div', 'panel');
+    const strip = make('div', 'strip');
     const dock = make('div', 'dock');
-    dock.append(panel, row); // on top the dock turns over, so the panel is always the far side
+    // On top the dock turns over, so the panel is always the far side and the strip stays
+    // next to the bar.
+    dock.append(panel, strip, row);
     root.append(make('style', '', CSS), layer, dock);
 
     input.addEventListener('input', () => {
@@ -366,12 +408,21 @@
       scheduleRender();
     });
     return {
-      host, layer, outline, dock, bar, panel, input, count, extras, action, verb, detail,
-      observer, boxes: [],
+      host, layer, outline, dock, bar, panel, strip, input, count, extras, action, verb, detail,
+      observer, boxes: [], tags: [],
     };
   }
 
   function showStatus() {
+    if (shortMode && hintPending !== null) {
+      ui.bar.classList.remove('none');
+      ui.count.textContent = '';
+      ui.action.style.display = '';
+      ui.verb.textContent = HINT_PREFIX + hintPending;
+      ui.detail.textContent = 'hint key';
+      ui.extras.classList.add('on');
+      return;
+    }
     const text = ui.input.value.trim();
     if (text.startsWith(COMMAND_PREFIX)) {
       const command = commandMatches[0];
@@ -445,6 +496,9 @@
       ui.dock.classList.toggle('top',
         first.bottom > barTop && first.left < bar.right + 8 && first.right > bar.left - 8);
     }
+
+    if (shortMode) renderTags();
+    else hideTags();
   }
 
   function addBox() {
@@ -563,6 +617,10 @@
     const name = typed.slice(COMMAND_PREFIX.length).trim().toLowerCase();
     commandMatches = COMMANDS.filter((c) => c.name.startsWith(name));
     const exact = COMMANDS.find((c) => c.name === name);
+    if (exact && exact.run) {
+      exact.run(); // a command that does something rather than saying something
+      return;
+    }
     showPanel(exact ? exact.fill : (panel) => fillCommandList(panel, name));
     showStatus();
     render();
@@ -609,11 +667,17 @@
         ['Shift+Tab  ↑', 'previous match'],
         ['Esc', 'close the bar and put the cursor back where it was'],
         [`${COMMAND_PREFIX}help`, 'this page'],
+        [`${COMMAND_PREFIX}short`, 'a hint key on everything clickable'],
+        [`${HINT_PREFIX} then a hint key`, 'use that hint, while the hints are up'],
+        ['b  f  h', `with ${HINT_PREFIX}: back, forward, home`],
+        ['1 2 3 …', `with ${HINT_PREFIX}: the bookmarks on your bookmarks toolbar`],
       ]),
       make('p', 'note', 'It finds the text you can see, and also the placeholder, label, tooltip '
         + 'or picture description of things that have no text of their own. '
         + 'The bar cannot open on Firefox\'s own pages, such as a new tab or the home page, '
-        + 'because Firefox lets no extension run there. '
+        + 'because Firefox lets no extension run there, and for the same reason the back, '
+        + `forward, home and bookmark hints in ${COMMAND_PREFIX}short sit in a strip of their `
+        + 'own rather than beside the real buttons. '
         + 'To use other keys for the bar, open about:addons → ⚙ → Manage Extension Shortcuts.'),
     );
   }
@@ -622,6 +686,227 @@
     const list = make('dl');
     for (const [keys, what] of pairs) list.append(make('dt', '', keys), make('dd', '', what));
     return list;
+  }
+
+  // ---- !short: a hint key on everything ---------------------------------------------------
+
+  // An extension cannot draw on Firefox's own toolbar, so back, forward, home and the bookmarks
+  // toolbar get a strip of UOKey's own above the bar. The keys still do the real thing.
+  function startShort() {
+    ui.input.value = '';
+    commandMatches = [];
+    hidePanel();
+    shortMode = true;
+    hintPending = null;
+    // The page's hints could be worked out here, but the bookmarks have to be asked for, and
+    // they take the first keys, so wait and hand out every hint at once.
+    ensurePlaces().then(() => {
+      if (!shortMode) return;
+      collectHints();
+      renderStrip();
+      showStatus();
+      render();
+    });
+  }
+
+  function stopShort() {
+    shortMode = false;
+    hints = [];
+    hintPending = null;
+    renderStrip();
+    hideTags();
+    showStatus();
+    render();
+  }
+
+  // background.js holds the bookmarks and the home page; a page is told once and it is kept.
+  function ensurePlaces() {
+    if (placesAsked) return Promise.resolve(places);
+    placesAsked = true;
+    return browser.runtime.sendMessage('get-places')
+      .then((answer) => {
+        if (answer) places = answer;
+        return places;
+      })
+      .catch(() => places); // no answer: the strip still has back and forward
+  }
+
+  function collectHints() {
+    hints = [
+      { code: 'b', label: 'back', kind: 'back', strip: true },
+      { code: 'f', label: 'forward', kind: 'forward', strip: true },
+    ];
+    if (places.home) {
+      hints.push({ code: 'h', label: 'home', kind: 'url', url: places.home, strip: true });
+    }
+    const spare = [...BOOKMARK_KEYS, ...HINT_ALPHABET];
+    let n = 0;
+    for (const mark of places.bookmarks) {
+      if (n >= spare.length) break;
+      hints.push({
+        code: spare[n++], label: mark.title, kind: 'url', url: mark.url, strip: true, bookmark: true,
+      });
+    }
+    const taken = new Set(hints.map((h) => h.code));
+    const letters = [...HINT_ALPHABET].filter((c) => !taken.has(c));
+    for (const [el, code] of codesFor(clickableElements(), letters)) {
+      hints.push({ code, label: '', kind: 'element', el, strip: false });
+    }
+  }
+
+  // One letter each while they fit, two when they don't, so no hint is the start of another.
+  function codesFor(els, letters) {
+    const out = [];
+    if (!letters.length) return out;
+    if (els.length <= letters.length) {
+      els.forEach((el, i) => out.push([el, letters[i]]));
+      return out;
+    }
+    let i = 0;
+    for (const a of letters) {
+      for (const b of letters) {
+        if (i >= els.length) return out;
+        out.push([els[i++], a + b]);
+      }
+    }
+    return out;
+  }
+
+  // Everything clickable on the page, not only what is on screen: scrolling then brings hints
+  // into view instead of renaming the ones already there.
+  function clickableElements() {
+    const found = [];
+    const roots = [document];
+    for (let i = 0; i < roots.length; i++) {
+      const root = roots[i];
+      for (const el of root.querySelectorAll('*')) {
+        if (el === ui.host) continue;
+        const shadow = shadowOf(el);
+        if (shadow) roots.push(shadow);
+      }
+      for (const el of root.querySelectorAll(ACTIONABLE)) {
+        if (found.length >= MAX_HINTS) return found;
+        if (el === ui.host || !el.checkVisibility(VISIBILITY)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width >= 2 && r.height >= 2) found.push(el);
+      }
+    }
+    return found;
+  }
+
+  // HINT_PREFIX starts a hint and the keys after it pick one. Anything else goes to the bar as
+  // usual, so the page can still be searched by its text while the hints are up.
+  function handleHintKey(e) {
+    if (hintPending === null) {
+      if (e.key !== HINT_PREFIX || e.ctrlKey || e.altKey || e.metaKey) return false;
+      e.preventDefault();
+      hintPending = '';
+      showStatus();
+      render();
+      return true;
+    }
+    e.preventDefault();
+    if (e.key === 'Escape') {
+      cancelHint();
+      return true;
+    }
+    if (e.key === 'Backspace') {
+      hintPending = hintPending ? hintPending.slice(0, -1) : null;
+      showStatus();
+      render();
+      return true;
+    }
+    if (e.key.length !== 1) return true; // Shift and the like: the hint is still being typed
+    const typed = hintPending + e.key.toLowerCase();
+    const hit = hints.find((h) => h.code === typed);
+    if (hit) {
+      swallowKeyUp = e.code;
+      cancelHint();
+      useHint(hit);
+      return true;
+    }
+    if (hints.some((h) => h.code.startsWith(typed))) {
+      hintPending = typed;
+      showStatus();
+      render();
+      return true;
+    }
+    cancelHint(); // no hint starts with that
+    return true;
+  }
+
+  function cancelHint() {
+    hintPending = null;
+    showStatus();
+    render();
+  }
+
+  function useHint(hint) {
+    if (hint.kind === 'back') {
+      close(false);
+      history.back();
+      return;
+    }
+    if (hint.kind === 'forward') {
+      close(false);
+      history.forward();
+      return;
+    }
+    if (hint.kind === 'url') {
+      close(false);
+      location.href = hint.url;
+      return;
+    }
+    if (!hint.el.isConnected) return;
+    const rect = hint.el.getBoundingClientRect();
+    close(false);
+    activate({ target: hint.el, clickEl: hint.el, ranges: [], els: [hint.el] }, rect);
+  }
+
+  function renderStrip() {
+    if (!ui) return;
+    ui.strip.textContent = '';
+    const shown = hints.filter((h) => h.strip);
+    ui.strip.classList.toggle('on', shortMode && shown.length > 0);
+    if (!shortMode) return;
+    for (const h of shown) {
+      const item = make('span', 'sitem');
+      item.append(make('kbd', 'skey', h.code), make('span', 'slabel', h.label));
+      ui.strip.append(item);
+    }
+    const over = places.bookmarks.length - shown.filter((h) => h.bookmark).length;
+    if (over > 0) ui.strip.append(make('span', 'more', `+${over} more`));
+  }
+
+  function renderTags() {
+    let used = 0;
+    for (const h of hints) {
+      if (h.kind !== 'element' || !h.el.isConnected) continue;
+      const r = h.el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+      if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+      const tag = ui.tags[used] || addTag();
+      used++;
+      tag.textContent = h.code;
+      tag.className = `tag${hintPending ? (h.code.startsWith(hintPending) ? ' hit' : ' dim') : ''}`;
+      tag.style.display = 'block';
+      // Just above the top-left corner, so the hint doesn't sit on the words it belongs to.
+      tag.style.left = `${Math.max(0, Math.min(r.left, innerWidth - 26))}px`;
+      tag.style.top = `${Math.max(0, r.top - TAG_LIFT)}px`;
+    }
+    for (let i = used; i < ui.tags.length; i++) ui.tags[i].style.display = 'none';
+  }
+
+  function hideTags() {
+    if (!ui) return;
+    for (const tag of ui.tags) tag.style.display = 'none';
+  }
+
+  function addTag() {
+    const tag = document.createElement('div');
+    ui.layer.append(tag);
+    ui.tags.push(tag);
+    return tag;
   }
 
   // ---- Searching ------------------------------------------------------------------------------

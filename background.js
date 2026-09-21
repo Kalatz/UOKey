@@ -29,8 +29,42 @@ browser.commands.onCommand.addListener(async (command) => {
 // for the keys itself as well, and asks here which ones they are.
 browser.runtime.onMessage.addListener((message) => {
   if (message === 'get-shortcut') return currentShortcut();
+  if (message === 'get-places') return places();
   return undefined;
 });
+
+// What !short puts in its strip, which the page has no way of reading for itself. An extension
+// cannot draw on Firefox's own toolbar, so UOKey draws these in the page instead and does the
+// real thing when the key is pressed. None of it is stored or sent anywhere.
+const NAVIGABLE = /^(https?|ftp|file):/i; // not javascript: bookmarklets or place: queries
+
+async function places() {
+  const [home, bookmarks] = await Promise.all([homepage(), toolbarBookmarks()]);
+  return { home, bookmarks };
+}
+
+async function homepage() {
+  try {
+    const setting = await browser.browserSettings.homepageOverride.get({});
+    // Firefox allows several home pages separated by |; the first is the one the button opens.
+    const first = String(setting.value || '').split('|')[0].trim();
+    return NAVIGABLE.test(first) ? first : '';
+  } catch {
+    return ''; // no permission for it, or it is set to something a page cannot be sent to
+  }
+}
+
+async function toolbarBookmarks() {
+  try {
+    const children = await browser.bookmarks.getChildren('toolbar_____');
+    // Folders have no url, and a separator is nothing to open.
+    return children
+      .filter((mark) => mark.url && NAVIGABLE.test(mark.url))
+      .map((mark) => ({ title: mark.title || mark.url, url: mark.url }));
+  } catch {
+    return [];
+  }
+}
 
 // The shortcut was changed in about:addons: tell the pages that are already open.
 browser.commands.onChanged?.addListener(async ({ name }) => {
