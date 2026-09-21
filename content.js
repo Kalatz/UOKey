@@ -72,7 +72,7 @@
   const COMMANDS = [
     { name: 'help', summary: 'what UOKey does, and every key it uses', fill: fillHelp },
     { name: 'short',
-      summary: `a hint key on everything clickable; ${HINT_PREFIX} then the key uses one`,
+      summary: 'a hint key on everything clickable; press one to use it',
       run: startShort },
     { name: 'marks',
       summary: 'find one of your bookmarks by name and open it',
@@ -82,6 +82,7 @@
       run: () => startList('tabs') },
   ];
   const MAX_LIST = 200; // bookmarks or tabs listed at once
+  const SHORT_PLACEHOLDER = 'Press a hint key…';
 
   // Firefox lets extensions look inside closed shadow roots as well as open ones.
   const shadowOf = 'openOrClosedShadowRoot' in Element.prototype
@@ -375,8 +376,10 @@
     }
   }
 
+  // A real mouse press outside the bar means the page is wanted, so the bar gets out of the way.
+  // The clicks UOKey makes itself are not trusted, and must not be taken for someone leaving.
   function onMouseDown(e) {
-    if (e.target !== ui.host) close(false);
+    if (e.isTrusted && e.target !== ui.host) close(false);
   }
 
   function createUI() {
@@ -430,10 +433,6 @@
         runSearch();
       }
     });
-    input.addEventListener('blur', () => setTimeout(() => {
-      // Focus moved elsewhere in the page (not just to another window): get out of the way.
-      if (isOpen && document.hasFocus() && document.activeElement !== host) close(false);
-    }));
     // Clicking the bar or the panel must not take focus away from the input.
     dock.addEventListener('mousedown', (e) => {
       if (e.target !== input) e.preventDefault();
@@ -451,12 +450,14 @@
   }
 
   function showStatus() {
-    if (shortMode && hintPending !== null) {
+    if (shortMode && !ui.input.value.trim().startsWith(COMMAND_PREFIX)) {
       ui.bar.classList.remove('none');
       ui.count.textContent = '';
       ui.action.style.display = '';
-      ui.verb.textContent = HINT_PREFIX + hintPending;
-      ui.detail.textContent = 'hint key';
+      ui.verb.textContent = hintPending || 'hints';
+      ui.detail.textContent = hintPending
+        ? 'keep going'
+        : `press a hint key, ${COMMAND_PREFIX}short or Esc to stop`;
       ui.extras.classList.add('on');
       return;
     }
@@ -597,10 +598,32 @@
     // Only a link goes anywhere on its own, so only a link can be opened in a tab behind this
     // one; a button or a field is clicked where it stands, whatever was held down.
     const href = newTab ? linkOf(m) : '';
-    const rect = rectsOf(m)[0];
-    close(false);
-    if (href) openNewTab(href);
-    else activate(m, rect);
+    if (href) {
+      openNewTab(href);
+      return;
+    }
+    useElement(m, rectsOf(m)[0]);
+  }
+
+  // Clicking something no longer puts the bar away: it stays until Ctrl+Space or Esc. A field
+  // is the one exception, because the cursor has to be in it for you to type. Afterwards the
+  // bar takes the keyboard back, or the keys that work it would go to whatever was just clicked.
+  function useElement(m, rect) {
+    const target = realTarget(m.target);
+    if (isTypeable(target) || target.localName === 'select') {
+      close(false);
+      activate(m, rect);
+      return;
+    }
+    activate(m, rect);
+    if (!isOpen) return; // it was a link, and the page is on its way somewhere else
+    ui.input.focus({ preventScroll: true });
+    indexDirty = true; // whatever was clicked has probably changed the page
+  }
+
+  function realTarget(el) {
+    const control = el.localName === 'label' ? el.control : null;
+    return control || el;
   }
 
   function linkOf(m) {
@@ -723,15 +746,15 @@
         ['Enter', 'click the orange match, or start typing in it when it is a field'],
         ['Tab  ↓', 'next match'],
         ['Shift+Tab  ↑', 'previous match'],
-        ['Esc', 'close the bar and put the cursor back where it was'],
+        ['Esc', 'leave the hints or the list, then close the bar'],
         [`${COMMAND_PREFIX}help`, 'this page'],
-        [`${COMMAND_PREFIX}short`, 'a hint key on everything clickable'],
+        [`${COMMAND_PREFIX}short`, 'a hint key on everything clickable; again to put them away'],
         [`${COMMAND_PREFIX}marks`, 'find one of your bookmarks and open it'],
         [`${COMMAND_PREFIX}tabs`, 'find one of your open tabs and go to it'],
         ['Shift+Enter', 'open a link, or a bookmark, in a tab behind this one'],
-        [`${HINT_PREFIX} then a hint key`, 'use that hint, while the hints are up'],
-        ['b  f  h', `with ${HINT_PREFIX}: back, forward, home`],
-        ['1 2 3 …', `with ${HINT_PREFIX}: the bookmarks on your bookmarks toolbar`],
+        ['a hint key', 'use that hint, while the hints are up'],
+        ['b  f  h', 'with the hints up: back, forward, home'],
+        ['1 2 3 …', 'with the hints up: your bookmarks toolbar'],
       ]),
       make('p', 'note', 'It finds the text you can see, and also the placeholder, label, tooltip '
         + 'or picture description of things that have no text of their own. '
@@ -754,11 +777,20 @@
   // An extension cannot draw on Firefox's own toolbar, so back, forward, home and the bookmarks
   // toolbar get a strip of UOKey's own above the bar. The keys still do the real thing.
   function startShort() {
+    if (shortMode) {
+      stopShort(); // !short again puts them away: it is a switch, not a button
+      ui.input.value = '';
+      hidePanel();
+      runSearch(); // the name that switched them off is not something to go on showing
+      return;
+    }
+    leaveList(); // a list and the hints are never up together; Enter belongs to one of them
     ui.input.value = '';
     commandMatches = [];
     hidePanel();
     shortMode = true;
     hintPending = null;
+    ui.input.placeholder = SHORT_PLACEHOLDER;
     // The page's hints could be worked out here, but the bookmarks have to be asked for, and
     // they take the first keys, so wait and hand out every hint at once.
     ensurePlaces().then(() => {
@@ -770,12 +802,18 @@
     });
   }
 
-  function stopShort() {
+  function leaveShort() {
     shortMode = false;
     hints = [];
     hintPending = null;
+    if (!ui) return;
+    ui.input.placeholder = PLACEHOLDER;
     renderStrip();
     hideTags();
+  }
+
+  function stopShort() {
+    leaveShort();
     showStatus();
     render();
   }
@@ -855,34 +893,43 @@
     return found;
   }
 
-  // HINT_PREFIX starts a hint and the keys after it pick one. Anything else goes to the bar as
-  // usual, so the page can still be searched by its text while the hints are up.
+  // While the hints are up a hint key is pressed on its own. HINT_PREFIX still works in front of
+  // one for anyone who learned it that way, but nothing needs it any more. Keys that are not a
+  // hint are left alone, so Tab, Enter, Esc and the arrows still mean what they always did.
   function handleHintKey(e) {
-    if (hintPending === null) {
-      if (e.key !== HINT_PREFIX || e.ctrlKey || e.altKey || e.metaKey) return false;
+    if (e.ctrlKey || e.altKey || e.metaKey) return false;
+    // A command can still be typed while the hints are up, so COMMAND_PREFIX and everything
+    // after it goes to the bar: that is how !short puts them away again.
+    if (e.key === COMMAND_PREFIX || ui.input.value.startsWith(COMMAND_PREFIX)) return false;
+    if (e.key === HINT_PREFIX) {
       e.preventDefault();
       hintPending = '';
       showStatus();
       render();
       return true;
     }
-    e.preventDefault();
     if (e.key === 'Escape') {
+      if (hintPending === null) return false; // nothing half-typed: Esc means put them away
+      e.preventDefault();
       cancelHint();
       return true;
     }
     if (e.key === 'Backspace') {
-      hintPending = hintPending ? hintPending.slice(0, -1) : null;
+      if (hintPending === null) return false;
+      e.preventDefault();
+      hintPending = hintPending.slice(0, -1) || null;
       showStatus();
       render();
       return true;
     }
-    if (e.key.length !== 1) return true; // Shift and the like: the hint is still being typed
-    const typed = hintPending + e.key.toLowerCase();
+    if (e.key.length !== 1) return false;
+    e.preventDefault();
+    const typed = (hintPending || '') + e.key.toLowerCase();
     const hit = hints.find((h) => h.code === typed);
     if (hit) {
       swallowKeyUp = e.code;
-      cancelHint();
+      hintPending = null;
+      showStatus();
       useHint(hit);
       return true;
     }
@@ -903,25 +950,28 @@
   }
 
   function useHint(hint) {
+    // These three leave the page, so there is nothing to keep the hints on.
     if (hint.kind === 'back') {
-      close(false);
       history.back();
       return;
     }
     if (hint.kind === 'forward') {
-      close(false);
       history.forward();
       return;
     }
     if (hint.kind === 'url') {
-      close(false);
       location.href = hint.url;
       return;
     }
     if (!hint.el.isConnected) return;
-    const rect = hint.el.getBoundingClientRect();
-    close(false);
-    activate({ target: hint.el, clickEl: hint.el, ranges: [], els: [hint.el] }, rect);
+    const el = hint.el;
+    useElement({ target: el, clickEl: el, ranges: [], els: [el] }, el.getBoundingClientRect());
+    if (!isOpen || !shortMode) return;
+    // The page has very likely changed, so the hints are worked out again rather than left
+    // pointing at what was there before.
+    collectHints();
+    renderStrip();
+    render();
   }
 
   function renderStrip() {
@@ -988,9 +1038,12 @@
       group: (item) => item.folder || 'Bookmarks',
       note: () => '',
       use: (item, newTab) => {
+        if (newTab) {
+          openNewTab(item.url); // you are staying here, so the bar stays too
+          return;
+        }
         close(false);
-        if (newTab) openNewTab(item.url);
-        else location.href = item.url;
+        location.href = item.url;
       },
     },
     tabs: {
@@ -1014,6 +1067,11 @@
   function startList(name) {
     const which = LISTS[name];
     if (!which) return;
+    if (list === which) {
+      stopList(); // the same command again puts the list away
+      return;
+    }
+    leaveShort();
     ui.input.value = '';
     commandMatches = [];
     matches = [];

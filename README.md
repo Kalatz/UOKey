@@ -16,7 +16,7 @@ match is a text field, Enter puts the cursor in it instead so you can type.
 | Esc | close the bar and go back to where you were |
 | !help | show all of this in the bar itself |
 | !short | put a hint key on everything clickable |
-| % then a hint key | use that hint, while the hints are up |
+| a hint key | use that hint, while the hints are up |
 | !marks | find one of your bookmarks and open it |
 | !tabs | find one of your open tabs and go to it |
 | Shift+Enter | open a link, or a bookmark, in a tab behind this one |
@@ -62,18 +62,25 @@ ask each bookmarked site for it, which would tell all of them what you have kept
 
 ## Hints: !short
 
-Type `!short` and every link, button and field on the page gets a small key above it. Press `%`
-and then that key to use it. Ordinary typing still searches the page, which is what the `%` is
-for: it marks the next key or two as a hint rather than text to find.
+Type `!short` and every link, button and field on the page gets a small key above it. Press that
+key on its own to use it. Typing `!short` again puts the hints away, so the command is a switch
+rather than a button; Esc does the same.
+
+Using a hint does not put the hints away. They are worked out again for the page as it now
+stands, so you can press one button after another without reaching for anything.
 
 Back, forward, home and your bookmarks toolbar get keys too, in a strip above the bar:
 
 | Key | What it does |
 | --- | --- |
-| %b | back |
-| %f | forward |
-| %h | your home page |
-| %1 %2 %3 … | the bookmarks on your bookmarks toolbar, left to right |
+| b | back |
+| f | forward |
+| h | your home page |
+| 1 2 3 … | the bookmarks on your bookmarks toolbar, left to right |
+
+A `%` in front of a hint key still works, which is how this used to be done, but nothing needs
+it. Anything starting with `!` still goes to the bar as a command, which is why `!short` can
+switch the hints off from inside the hints.
 
 The strip is UOKey's own, drawn in the page. Firefox doesn't let an extension draw anything on
 its real toolbar, so the hints can't sit next to the actual back, forward and bookmark buttons —
@@ -83,6 +90,15 @@ Page hints are one letter each while they fit and two when they don't, so no hin
 start of another one and nothing waits to see what you type next. `b`, `f` and `h` are never
 given to the page, so they always mean back, forward and home. Esc puts the hints away and
 leaves the bar open; Esc again closes it.
+
+## It stays until you say otherwise
+
+The bar opens on Ctrl+Space and stays open. Clicking a link or a button with it, using a hint, or
+losing the keyboard to something on the page no longer puts it away: only Ctrl+Space again, or
+Esc, or a real mouse click somewhere on the page.
+
+The one thing that still closes it by itself is Enter on a text field, because the cursor has to
+be in the field rather than in the bar for you to be able to type.
 
 Reading your bookmarks, your open tabs and your home page setting is why UOKey asks for the
 **bookmarks**, **tabs** and **browser settings** permissions when you install it. It only reads
