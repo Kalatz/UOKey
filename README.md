@@ -55,16 +55,25 @@ They are listed in the folders you keep them in, so a long list reads like your 
 rather than one run of names. Folder names count as something to type, too: `work` finds
 everything in a Work folder, whatever the bookmarks in it are called.
 
+Your **bookmarks toolbar comes first and open**, since it is the one you arranged to be at
+hand. Every other folder is shut, shown as its name and how many are in it; move to one and press
+Enter to open it, and Enter again to shut it. That keeps the whole thing to about a screenful
+however many bookmarks you have.
+
 Each folder's bookmarks are laid out side by side rather than in one long column, which halves
 how far there is to scroll, and the address beside each name is only the site it is on:
 `github.com`, not `https://www.github.com/kalatz/uokey/issues/new`. The name already says which
 page it is. Typing still looks at the whole address, so a word from the part that isn't shown
 will still find it.
 
-Each one carries a small square with the site's first letter, coloured from the address, so two
-bookmarks on the same site look alike at a glance. They are not the sites' real favicons:
-Firefox keeps those where an extension can't read them, and the only other way to get one is to
-ask each bookmarked site for it, which would tell all of them what you have kept.
+Each one carries the site's own icon where UOKey has one, and a small square with the site's
+first letter, coloured from the address, where it hasn't.
+
+The icons are never fetched. Firefox hands one over whenever a tab settles on a page, and those
+are kept, so a site you have visited shows its real icon in `!marks` and `!tabs` without a single
+request going out and without telling any site what you have bookmarked. A site you have never
+opened keeps its letter. Remembering them is what the **storage** permission is for; it holds
+nothing but a list of sites and their icons, and never more than 400 of them.
 
 ## Hints: !short
 
@@ -75,12 +84,8 @@ rather than a button; Esc does the same.
 Using a hint does not put the hints away. They are worked out again for the page as it now
 stands, so you can press one button after another without reaching for anything.
 
-Every hint is also listed above the bar, in a table grouped into **Browser**, **Bookmarks
-toolbar** and **On this page**, each key next to the name of what it does. That list is the whole
-of it, including the links too far down the page to have a visible key on them yet, so `!short`
-tells you everything you can reach rather than only what is in front of you.
-
-Back, forward, home and your bookmarks toolbar get keys too:
+`!short` puts nothing on the screen but the keys themselves. Back, forward, home and your
+bookmarks toolbar have keys of their own, which `!help` lists:
 
 | Key | What it does |
 | --- | --- |
@@ -107,16 +112,22 @@ leaves the bar open; Esc again closes it.
 
 ## It stays until you say otherwise
 
-The bar opens on Ctrl+Space and stays open. Clicking a link or a button with it, using a hint, or
-losing the keyboard to something on the page no longer puts it away: only Ctrl+Space again, or
-Esc, or a real mouse click somewhere on the page.
+Ctrl+Space is a switch for the whole browser, not for the page you happen to be on. Turn it on
+and the bar is there on every page you open and in every tab, until you turn it off again or
+close Firefox. Following a link or a bookmark doesn't count as turning it off: the bar is waiting
+on the page you land on.
+
+Clicking a link or a button with it, using a hint, or losing the keyboard to something on the
+page doesn't put it away either. Only Ctrl+Space again, Esc, or a real mouse click somewhere on
+the page.
 
 The one thing that still closes it by itself is Enter on a text field, because the cursor has to
-be in the field rather than in the bar for you to be able to type.
+be in the field rather than in the bar for you to be able to type. Enter on anything else leaves
+the bar open and empties the box, ready for the next thing rather than still holding the last.
 
 Reading your bookmarks, your open tabs and your home page setting is why UOKey asks for the
-**bookmarks**, **tabs** and **browser settings** permissions when you install it. It only reads
-them, and nothing is stored or sent anywhere.
+**bookmarks**, **tabs** and **browser settings** permissions when you install it, and keeping
+site icons is what **storage** is for. It only reads them, and nothing is sent anywhere.
 
 The bar keeps out of the way: it opens as nothing but the box to type in, centred at the bottom of
 the page, and says nothing about commands or keys until you ask. The match count and what Enter

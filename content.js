@@ -156,6 +156,14 @@
     .markurl { flex: 0 4 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
       white-space: nowrap; color: #7d828b; font-size: 11px; }
     .here { flex: none; color: #ffb13b; font-size: 11px; }
+    .favicon img { display: block; width: 16px; height: 16px; border-radius: 3px; }
+    .folder { display: flex; align-items: center; gap: 7px; margin-top: 7px; padding: 3px 6px;
+      border-radius: 6px; color: #9aa0a8; }
+    .folder.cur { background: rgba(255, 138, 0, 0.18); box-shadow: inset 0 0 0 1px #ff8a00;
+      color: #e8e8ea; }
+    .twist { flex: none; width: 1em; color: #ffb13b; }
+    .foldername { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font: 600 11px/1.3 system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.07em; }
     .tag { position: absolute; display: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
     .tag.dim { opacity: 0.25; }
     .tag.hit { background: #ff8a00; }
@@ -177,6 +185,8 @@
   let shortcut = parseShortcut(DEFAULT_SHORTCUT);
   let keyToggleTime = -Infinity; // no keys of ours caught yet, however new the page is
   let commandMatches = [];
+  let leaving = false; // the page is going; closing the bar now is not the user's doing
+  let echo = true; // whether a change here is the user's doing and should reach the other tabs
   let shortMode = false;
   let hints = [];
   let hintPending = null; // null: not in a hint; '' or more: keys typed since HINT_PREFIX
@@ -187,6 +197,7 @@
   let listMatches = [];
   let listCurrent = -1;
   const listCache = new Map(); // bookmarks are asked for once a page; tabs every time
+  const openFolders = new Set(); // folders the user has opened, kept while the page lasts
 
   // The keyboard shortcut is handled by background.js, which tells the page to open or close
   // the bar. That way it works wherever the focus is, and can be changed in Firefox's settings.
@@ -194,6 +205,10 @@
     if (message === 'toggle-finder') {
       // Unless the keys were already caught below, which happens first: one press, one toggle.
       if (performance.now() - keyToggleTime > SAME_PRESS) toggle();
+    } else if (message === 'bar-on') {
+      if (!isOpen && document.body) quietly(() => open(deepActiveElement()));
+    } else if (message === 'bar-off') {
+      if (isOpen) quietly(() => close(false));
     } else if (message && typeof message.shortcut === 'string') {
       setShortcut(message.shortcut);
     }
@@ -205,6 +220,30 @@
     .then((text) => { if (typeof text === 'string') setShortcut(text); })
     .catch(() => { /* the background script didn't answer: keep the default */ });
 
+  function tellBar(on) {
+    if (!echo) return; // this tab is doing as it was told, and must not tell everyone back
+    browser.runtime.sendMessage({ bar: on }).catch(() => { /* nobody listening */ });
+  }
+
+  function quietly(change) {
+    echo = false;
+    try {
+      change();
+    } finally {
+      echo = true;
+    }
+  }
+
+  // The bar was left on, so this page opens with it rather than waiting to be asked again.
+  browser.runtime.sendMessage('bar-state')
+    .then((on) => {
+      if (on !== true || isOpen) return;
+      if (document.body) open(deepActiveElement());
+      else addEventListener('DOMContentLoaded',
+        () => { if (!isOpen) open(deepActiveElement()); }, { once: true });
+    })
+    .catch(() => { /* no answer: the bar stays shut until it is asked for */ });
+
   function setShortcut(text) {
     shortcutText = text;
     shortcut = parseShortcut(text); // null: cleared, or keys the page can't watch for
@@ -215,7 +254,11 @@
   addEventListener('keydown', onKeyDown, true);
   addEventListener('keyup', onKeyUp, true);
   addEventListener('keypress', stopIfOurs, true);
-  addEventListener('pagehide', () => close(false));
+  // Leaving the page is not the same as switching the bar off, so the switch is left alone.
+  addEventListener('pagehide', () => {
+    leaving = true;
+    close(false);
+  });
 
   // ---- Keyboard -------------------------------------------------------------------------------
 
@@ -311,6 +354,7 @@
 
   function open(before) {
     if (!document.body) return;
+    tellBar(true);
     returnFocus = before;
     if (!ui) ui = createUI();
     if (!isOpen) {
@@ -351,6 +395,7 @@
 
   function close(restoreFocus) {
     if (!isOpen) return;
+    if (!leaving) tellBar(false);
     isOpen = false;
     ui.observer.disconnect();
     removeEventListener('scroll', scheduleRender, true);
@@ -458,13 +503,18 @@
       return;
     }
     if (inList()) {
-      const item = listMatches[listCurrent];
-      ui.bar.classList.toggle('none', !item);
-      ui.count.textContent = `${item ? listCurrent + 1 : 0}/${listMatches.length}`;
-      ui.action.style.display = item ? '' : 'none';
-      if (item) {
+      const entry = listMatches[listCurrent];
+      const things = listMatches.filter((e) => e.kind === 'item');
+      const at = entry && entry.kind === 'item' ? things.indexOf(entry) + 1 : 0;
+      ui.bar.classList.toggle('none', !entry);
+      ui.count.textContent = `${at}/${things.length}`;
+      ui.action.style.display = entry ? '' : 'none';
+      if (entry && entry.kind === 'head') {
+        ui.verb.textContent = entry.open ? '↵ close' : '↵ open';
+        ui.detail.textContent = `${entry.count} in ${entry.name}`;
+      } else if (entry) {
         ui.verb.textContent = list.verb;
-        ui.detail.textContent = siteOf(item.url);
+        ui.detail.textContent = siteOf(entry.item.url);
       }
       ui.extras.classList.add('on');
       return;
@@ -598,13 +648,13 @@
       openNewTab(href);
       return;
     }
-    useElement(m, rectsOf(m)[0]);
+    useElement(m, rectsOf(m)[0], true);
   }
 
   // Clicking something no longer puts the bar away: it stays until Ctrl+Space or Esc. A field
   // is the one exception, because the cursor has to be in it for you to type. Afterwards the
   // bar takes the keyboard back, or the keys that work it would go to whatever was just clicked.
-  function useElement(m, rect) {
+  function useElement(m, rect, clear) {
     const target = realTarget(m.target);
     if (isTypeable(target) || target.localName === 'select') {
       close(false);
@@ -615,6 +665,10 @@
     if (!isOpen) return; // it was a link, and the page is on its way somewhere else
     ui.input.focus({ preventScroll: true });
     indexDirty = true; // whatever was clicked has probably changed the page
+    if (clear) {
+      ui.input.value = ''; // done with: the box is ready for the next thing rather than the last
+      runSearch();
+    }
   }
 
   function realTarget(el) {
@@ -792,7 +846,6 @@
     ensurePlaces().then(() => {
       if (!shortMode) return;
       collectHints();
-      showHints();
       showStatus();
       render();
     });
@@ -845,23 +898,8 @@
     const taken = new Set(hints.map((h) => h.code));
     const letters = [...HINT_ALPHABET].filter((c) => !taken.has(c));
     for (const [el, code] of codesFor(clickableElements(), letters)) {
-      hints.push({ code, label: nameOf(el), kind: 'element', el });
+      hints.push({ code, label: '', kind: 'element', el });
     }
-  }
-
-  // What to call a thing in the list of hints: what you can read on it, or failing that the
-  // label, tooltip, placeholder or picture description it goes by. Worked out once, when the
-  // hints are handed out, rather than every time the panel is drawn.
-  function nameOf(el) {
-    const text = (el.textContent || '').trim().replace(/\s+/g, ' ');
-    if (text) return text.slice(0, 70);
-    for (const attribute of ['aria-label', 'title', 'placeholder', 'alt', 'value']) {
-      const value = el.getAttribute(attribute);
-      if (value && value.trim()) return value.trim().slice(0, 70);
-    }
-    const picture = el.querySelector('img[alt]');
-    if (picture && picture.alt.trim()) return picture.alt.trim().slice(0, 70);
-    return el.localName;
   }
 
   // One letter each while they fit, two when they don't, so no hint is the start of another.
@@ -987,35 +1025,10 @@
     // The page has very likely changed, so the hints are worked out again rather than left
     // pointing at what was there before.
     collectHints();
-    showHints();
     render();
   }
 
-  // Every hint there is, in a table, in the panel the other commands use. A row of them beside
-  // the bar was fine for back, forward and three bookmarks and unreadable once a page's own
-  // links joined them.
-  function showHints() {
-    if (!shortMode) return;
-    showPanel(fillHints);
-  }
 
-  function fillHints(panel) {
-    const onPage = hints.filter((h) => h.kind === 'element');
-    panel.append(make('h1', '', `Hints (${hints.length})`));
-    const groups = [
-      ['Browser', hints.filter((h) => h.kind !== 'element' && !h.bookmark)],
-      ['Bookmarks toolbar', hints.filter((h) => h.bookmark)],
-      ['On this page', onPage],
-    ];
-    for (const [name, inIt] of groups) {
-      if (!inIt.length) continue;
-      panel.append(make('h2', '', `${name} (${inIt.length})`));
-      panel.append(rows(inIt.map((h) => [h.code, h.label])));
-    }
-    if (!onPage.length) {
-      panel.append(make('p', 'note', 'Nothing on this page can be clicked.'));
-    }
-  }
 
   function renderTags() {
     let used = 0;
@@ -1063,13 +1076,14 @@
       empty: 'No bookmarks to show. UOKey reads them through the bookmarks permission; if that '
         + 'was turned off in about:addons there is nothing here to find.',
       text: (item) => `${item.title} ${item.url} ${item.folder || ''}`,
-      group: (item) => item.folder || 'Bookmarks',
+      entries: markEntries,
       note: () => '',
       use: (item, newTab) => {
         if (newTab) {
           openNewTab(item.url); // you are staying here, so the bar stays too
           return;
         }
+        leaving = true; // going to the bookmark is not switching the bar off
         close(false);
         location.href = item.url;
       },
@@ -1083,11 +1097,13 @@
       none: 'No open tab matches that',
       empty: 'No tabs to show. UOKey reads them through the tabs permission.',
       text: (item) => `${item.title} ${item.url}`,
-      group: (item) => (item.here ? 'This window' : 'Other windows'),
+      entries: (items) => headed(byName(items, (t) => (t.here ? 'This window' : 'Other windows')),
+        () => true, true),
       note: (item) => (item.active ? 'this tab' : ''),
       use: (item) => {
-        close(false);
+        // Switching tab doesn't unload this one, so its bar is left as it was found.
         browser.runtime.sendMessage({ tab: item.id, window: item.windowId }).catch(() => {});
+        stopList();
       },
     },
   };
@@ -1147,13 +1163,57 @@
   }
 
   function filterList() {
-    const query = fold(ui.input.value);
-    const found = query ? listItems.filter((item) => item.folded.includes(query)) : listItems;
-    listMatches = found.slice(0, MAX_LIST);
-    listCurrent = listMatches.length ? 0 : -1;
+    rebuildList();
+    listCurrent = listMatches.findIndex(pickable);
     showList();
     showStatus();
     render();
+  }
+
+  function rebuildList() {
+    const query = fold(ui.input.value);
+    const found = query ? listItems.filter((item) => item.folded.includes(query)) : listItems;
+    listMatches = list.entries(found.slice(0, MAX_LIST), query);
+  }
+
+  // Headings that only say what follows are skipped over; a shut folder is a row you can press.
+  function pickable(entry) {
+    return entry.kind === 'item' || !entry.fixed;
+  }
+
+  function byName(items, nameOf) {
+    const groups = new Map();
+    for (const item of items) {
+      const where = nameOf(item);
+      if (!groups.has(where)) groups.set(where, []);
+      groups.get(where).push(item);
+    }
+    return [...groups.entries()];
+  }
+
+  function headed(groups, isOpen, fixed) {
+    const out = [];
+    for (const [name, inIt] of groups) {
+      const open = isOpen(name);
+      out.push({ kind: 'head', name, count: inIt.length, open, fixed: !!fixed });
+      if (open) for (const item of inIt) out.push({ kind: 'item', item });
+    }
+    return out;
+  }
+
+  // The bookmarks toolbar is the one you arranged to be at hand, so it comes first and open.
+  // The rest are named and shut until you press one, which keeps the list to a screenful.
+  function markEntries(items, query) {
+    const groups = byName(items, (item) => item.folder || 'Bookmarks');
+    if (query) return headed(groups, () => true, true); // looking for one: show what was found
+    groups.sort(([a], [b]) => (onToolbar(a) === onToolbar(b)
+      ? a.localeCompare(b)
+      : (onToolbar(a) ? -1 : 1)));
+    return headed(groups, (name) => onToolbar(name) || openFolders.has(name), false);
+  }
+
+  function onToolbar(name) {
+    return /^bookmarks toolbar/i.test(name);
   }
 
   function showList() {
@@ -1167,46 +1227,93 @@
       panel.append(make('h1', '', list.placeholder), make('p', '', list.empty));
       return;
     }
+    const shown = listMatches.filter((entry) => entry.kind === 'item').length;
     panel.append(make('h1', '', listMatches.length
-      ? list.title(listMatches.length, listItems.length)
+      ? list.title(shown, listItems.length)
       : list.none));
-    // Kept in their groups, in the order they first turn up, so a long list reads the way the
-    // thing it came from is arranged rather than as one run of names.
-    const groups = new Map();
-    listMatches.forEach((item, i) => {
-      const where = list.group(item);
-      if (!groups.has(where)) groups.set(where, []);
-      groups.get(where).push([item, i]);
+    let grid = null;
+    listMatches.forEach((entry, i) => {
+      if (entry.kind === 'head') {
+        grid = null;
+        if (entry.fixed) panel.append(make('h2', '', entry.name));
+        else panel.append(folderRow(entry, i));
+        return;
+      }
+      if (!grid) {
+        grid = make('div', 'marks');
+        panel.append(grid);
+      }
+      grid.append(listRow(entry.item, i));
     });
-    for (const [where, inIt] of groups) {
-      panel.append(make('h2', '', where));
-      const rows = make('div', 'marks');
-      for (const [item, i] of inIt) rows.append(listRow(item, i));
-      panel.append(rows);
-    }
+  }
+
+  function folderRow(entry, i) {
+    const row = make('div', `folder${i === listCurrent ? ' cur' : ''}`);
+    row.append(make('span', 'twist', entry.open ? '▾' : '▸'),
+      make('span', 'foldername', entry.name),
+      make('span', 'markurl', String(entry.count)));
+    return row;
   }
 
   function listRow(item, i) {
     const row = make('div', `markrow${i === listCurrent ? ' cur' : ''}`);
-    const icon = make('span', 'favicon', initialOf(item));
-    icon.style.background = colourOf(item.url);
-    row.append(icon, make('span', 'marktitle', item.title),
+    row.append(iconFor(item), make('span', 'marktitle', item.title),
       make('span', 'markurl', siteOf(item.url)));
     const note = list.note(item);
     if (note) row.append(make('span', 'here', note));
     return row;
   }
 
+  // The site's own icon where one has been kept from a tab, and a letter on a colour of the
+  // site's own where not. A page is allowed to forbid loading it, so the letter is the fallback.
+  function iconFor(item) {
+    const box = make('span', 'favicon');
+    const letter = () => {
+      box.textContent = initialOf(item);
+      box.style.background = colourOf(item.url);
+    };
+    if (!item.icon) {
+      letter();
+      return box;
+    }
+    const picture = document.createElement('img');
+    picture.alt = '';
+    picture.addEventListener('error', () => {
+      picture.remove();
+      letter();
+    });
+    picture.src = item.icon;
+    box.append(picture);
+    return box;
+  }
+
   function stepList(direction) {
     if (!listMatches.length) return;
-    listCurrent = (listCurrent + direction + listMatches.length) % listMatches.length;
+    let at = listCurrent;
+    for (let step = 0; step < listMatches.length; step++) {
+      at = (at + direction + listMatches.length) % listMatches.length;
+      if (pickable(listMatches[at])) break;
+    }
+    listCurrent = at;
     showList();
     showStatus();
   }
 
   function useList(newTab) {
-    const item = listMatches[listCurrent];
-    if (item) list.use(item, newTab);
+    const entry = listMatches[listCurrent];
+    if (!entry) return;
+    if (entry.kind === 'head') {
+      if (openFolders.has(entry.name)) openFolders.delete(entry.name);
+      else openFolders.add(entry.name);
+      rebuildList();
+      // Stay on the folder just opened rather than jumping back to the top of the list.
+      const back = listMatches.findIndex((e) => e.kind === 'head' && e.name === entry.name);
+      if (back !== -1) listCurrent = back;
+      showList();
+      showStatus();
+      return;
+    }
+    list.use(entry.item, newTab);
   }
 
   // A page cannot put a tab behind itself, so background.js opens it.
