@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/logo.svg" alt="" width="170">
+<img src="icons/icon.svg" alt="" width="170">
 
 # UOKey
 
