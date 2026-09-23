@@ -9,7 +9,7 @@ or field says, and press Enter to click it.
 
 [![Firefox 128+](https://img.shields.io/badge/Firefox-128%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
 [![Manifest V3](https://img.shields.io/badge/manifest-v3-000033)](manifest.json)
-[![Version 1.1.0](https://img.shields.io/badge/version-1.1.0-000033)](CHANGELOG.md)
+[![Version 1.2.0](https://img.shields.io/badge/version-1.2.0-000033)](CHANGELOG.md)
 [![Data collected: none](https://img.shields.io/badge/data%20collected-none-2ea043)](#permissions)
 
 </div>
@@ -39,6 +39,8 @@ else shows until you ask. The bar moves to the top of the page when it would cov
 | <kbd>Shift</kbd>+<kbd>Enter</kbd> | open a link, or a bookmark, in a tab behind this one |
 | <kbd>Tab</kbd> or <kbd>↓</kbd> | next match |
 | <kbd>Shift</kbd>+<kbd>Tab</kbd> or <kbd>↑</kbd> | previous match |
+| <kbd>&lt;</kbd> and <kbd>&gt;</kbd> | nudge whatever the match sits in, or the page; hold to keep going |
+| <kbd>PageUp</kbd> and <kbd>PageDown</kbd> | the same, a screen at a time |
 | <kbd>Esc</kbd> | close the bar and go back to where you were |
 
 It searches visible text, and also placeholders, labels, tooltips and image descriptions (alt

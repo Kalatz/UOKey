@@ -5,6 +5,29 @@ shows in `about:addons`.
 
 ---
 
+## 1.2.0 — 23 September 2026
+
+**Scrolling, without leaving the keyboard.** <kbd>&lt;</kbd> and <kbd>&gt;</kbd> nudge the page
+along and <kbd>PageUp</kbd> and <kbd>PageDown</kbd> take it a screen at a time, while the bar is
+open. Held down, the key repeats on its own and the page keeps going.
+
+What moves is whatever the match you are on sits in, so a long menu, a chat panel or a list of
+results scrolls on its own rather than the page behind it; one that has reached its end is
+stepped over, so the page takes the key instead of the last press doing nothing. With nothing
+found yet, or nothing that scrolls around the match, the page moves. A match inside a frame
+scrolls what holds it in there, and the page behind if that frame has nothing to scroll.
+
+It works while the hints are up as well, which is where it is worth most: `!short` puts a hint on
+everything clickable, not only what is on screen, so scrolling brings the rest of them into reach
+under the keys they already have.
+
+<kbd>&lt;</kbd> and <kbd>&gt;</kbd> cost what they are worth. They were ordinary searchable text
+before, so text with one in it — `<div>` in a page of HTML, the `>` in a row of breadcrumbs —
+can no longer be searched for. That buys a scroll key that is under the fingers already instead
+of across the keyboard.
+
+---
+
 ## 1.1.0 — 23 September 2026
 
 **The hints wait for whatever a click opens.** Pressing a hint that opens a menu, a dialog or a

@@ -98,6 +98,12 @@
       summary: 'find one of your open tabs by name and go to it',
       run: () => startList('tabs') },
   ];
+  // Looking around without leaving the keyboard. < and > nudge it along and PageUp and PageDown
+  // take it a screen at a time; held down, the key repeats on its own and the page keeps going.
+  // < and > cost what they are worth: text with one in it stops being findable, which buys a
+  // scroll key that is under the fingers already rather than across the keyboard.
+  const NUDGE = 80; // px, about four lines
+  const SCREENFUL = 0.9; // of the height, leaving a line or two to read across
   const MAX_LIST = 200; // bookmarks or tabs listed at once
   const SHORT_PLACEHOLDER = 'Press a hint key…';
   // A modifier held down on its own: nothing to pass out of a frame to the bar.
@@ -324,6 +330,11 @@
         if (hit) useHint(hit);
         break;
       }
+      case 'scroll':
+        // The match being scrolled around is in here. Nothing in here to scroll means the page
+        // behind takes it, rather than the key doing nothing because the match is in a frame.
+        if (!scrollHere(message.by)) toTop({ uokey: 'scrollpage', by: message.by });
+        break;
       case 'hide':
         // The page has stepped out of the way of a field. Quietly: it is not switched off.
         quietly(() => close(false));
@@ -374,6 +385,10 @@
         // A field in one of the frames has been given the keyboard, so the bar — and what the
         // other frames are drawing — is in the way.
         if (isOpen) stepAside();
+        break;
+      case 'scrollpage':
+        // A frame had nothing of its own to scroll, so the page moves instead.
+        if (isOpen) scrollBy(0, message.by);
         break;
       case 'reopen':
         // That typing is done, so the bar comes back and takes the keyboard with it.
@@ -490,6 +505,7 @@
         shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey });
       return;
     }
+    if (scrollKey(e)) return; // before the hints, so the rest of them can be scrolled into reach
     if (shortMode && handleHintKey(e)) return;
     if (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -1151,6 +1167,70 @@
     toFrames({ uokey: 'find', query: text });
   }
 
+  // < and > move the page a nudge, PageUp and PageDown a screen. They are read off e.key, so a
+  // keyboard with a < > key of its own works as well as one that wants Shift for them.
+  function scrollKey(e) {
+    if (e.ctrlKey || e.altKey || e.metaKey) return false;
+    const screen = innerHeight * SCREENFUL;
+    const by = e.key === '<' ? -NUDGE
+      : e.key === '>' ? NUDGE
+        : e.key === 'PageUp' ? -screen
+          : e.key === 'PageDown' ? screen
+            : 0;
+    if (!by) return false;
+    e.preventDefault();
+    scrollAt(by);
+    return true;
+  }
+
+  // Whatever the match you are on sits in, so a long menu, a chat panel or a list of results
+  // moves on its own rather than the page behind it. With nothing to go on — nothing found yet,
+  // or nothing that scrolls around it — the page itself moves, which is what you meant anyway.
+  function scrollAt(by) {
+    if (inFrameAt) {
+      toFrame(inFrameAt.id, { uokey: 'scroll', by }); // the match is in there; so is what holds it
+      return;
+    }
+    scrollHere(by);
+  }
+
+  // True if something here took it. A frame that has nothing to scroll says so, rather than
+  // swallowing the key and leaving the page still.
+  function scrollHere(by) {
+    const m = matches[current];
+    const el = m && (m.els[0] || (m.ranges[0] && flatParent(m.ranges[0].startContainer)));
+    const box = el && scrollerOf(el, by);
+    if (box) {
+      box.scrollTop += by;
+      return true;
+    }
+    if (!windowScrolls(by)) return false;
+    scrollBy(0, by);
+    return true;
+  }
+
+  // The nearest thing above an element that can scroll, and has somewhere left to go that way.
+  // One that has reached its end is stepped over, so the page takes the key instead of the last
+  // press of it doing nothing at all.
+  function scrollerOf(el, by) {
+    for (let node = el; node; node = flatParent(node)) {
+      if (node === document.documentElement || node === document.body) break;
+      if (!/auto|scroll/.test(getComputedStyle(node).overflowY)) continue;
+      if (hasRoom(node, by)) return node;
+    }
+    return null;
+  }
+
+  function windowScrolls(by) {
+    const el = document.scrollingElement || document.documentElement;
+    return !!el && hasRoom(el, by);
+  }
+
+  function hasRoom(el, by) {
+    return by < 0 ? el.scrollTop > 0
+      : el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+  }
+
   // Scroll a match into view if it isn't fully visible.
   function reveal(m) {
     const r = rectsOf(m)[0];
@@ -1353,6 +1433,8 @@
         ['Shift+Enter', 'open a link in a tab behind this one'],
         ['Tab  ↓', 'next match'],
         ['Shift+Tab  ↑', 'previous match'],
+        ['<  >', 'nudge what the match sits in, or the page; hold to keep going'],
+        ['PageUp  PageDown', 'the same, a screen at a time'],
         ['Esc', 'leave the hints or a list, then close the bar'],
       ]),
 
