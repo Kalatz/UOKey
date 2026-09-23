@@ -9,7 +9,7 @@ or field says, and press Enter to click it.
 
 [![Firefox 128+](https://img.shields.io/badge/Firefox-128%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
 [![Manifest V3](https://img.shields.io/badge/manifest-v3-000033)](manifest.json)
-[![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-000033)](manifest.json)
+[![Version 1.1.0](https://img.shields.io/badge/version-1.1.0-000033)](CHANGELOG.md)
 [![Data collected: none](https://img.shields.io/badge/data%20collected-none-2ea043)](#permissions)
 
 </div>
@@ -42,7 +42,9 @@ else shows until you ask. The bar moves to the top of the page when it would cov
 | <kbd>Esc</kbd> | close the bar and go back to where you were |
 
 It searches visible text, and also placeholders, labels, tooltips and image descriptions (alt
-text). Capitals and accents make no difference, so `οδος` finds `Οδός`. Anything the page gives
+text), and whatever you have already typed into a field — so a search box you have half filled in
+is found by your own words, not by the placeholder it has stopped showing. Passwords are left out:
+what the screen stars out, UOKey does not read. Capitals and accents make no difference, so `οδος` finds `Οδός`. Anything the page gives
 the hand cursor counts as clickable, which is how most of the web builds a button out of a plain
 `div`.
 
@@ -67,8 +69,9 @@ its own to see the list.
 
 **`!short`** puts a small key under every link, button and field on the page. Press that key on
 its own to click the thing it belongs to. The hints stay up afterwards, worked out afresh each
-time, so you can press one button after another. `!short` again, or <kbd>Esc</kbd>, puts them
-away.
+time, so you can press one button after another — including on whatever the last press opened,
+which is waited for rather than missed. <kbd>Space</kbd> works them out again by hand, for a page
+that has put something up on its own. `!short` again, or <kbd>Esc</kbd>, puts them away.
 
 **`!marks`** searches your bookmarks by name, address or folder. They are listed in the folders
 you keep them in, with the bookmarks toolbar first and open and the rest shut until you press
@@ -87,7 +90,10 @@ its window forward if it is in another. Tabs in this window come first.
   real mouse click on the page puts it away; closing Firefox forgets it.
 - **Ctrl+Space and Esc back out one step at a time**: the hints or a list first, then the bar.
 - **Enter leaves the bar open** and empties the box, ready for the next thing. The one exception
-  is a text field, where the cursor has to go into the field for you to type.
+  is a text field: the cursor has to go into the field for you to type, so the bar steps aside
+  until that typing is done. It comes back when you press <kbd>Enter</kbd> in the field, or as
+  soon as you press <kbd>Ctrl</kbd>+<kbd>Space</kbd>. Stepping aside is not switching UOKey off:
+  your other tabs keep theirs, and the next page you open still has it.
 - **While the bar is open, what you type is the bar's**, wherever the cursor happens to be — even
   when a cookie wall or a modal dialog has grabbed the keyboard.
 - **Popups that are pages of their own count as part of the page.** UOKey runs in every `<iframe>`
@@ -107,7 +113,7 @@ its window forward if it is in another. Tabs in this window come first.
 4. Download the signed `.xpi` and open it in Firefox.
 
 For a new version, raise `version` in [`manifest.json`](manifest.json) first — Firefox will not
-install a version it already has.
+install a version it already has — and note what changed in [`CHANGELOG.md`](CHANGELOG.md).
 
 **To try it** (gone again when Firefox closes): open `about:debugging#/runtime/this-firefox`,
 click **Load Temporary Add-on…**, pick `manifest.json`, and reload the tabs you want it in.

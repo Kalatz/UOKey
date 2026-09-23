@@ -33,6 +33,9 @@
 
   const TEXT_INPUT_TYPES = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number',
     'date', 'datetime-local', 'month', 'week', 'time']);
+  // Fields whose contents count as their text, for finding them by. A password is not among
+  // them: it is starred out on screen, and what the screen hides UOKey hides too.
+  const TYPED_TEXT_TYPES = new Set([...TEXT_INPUT_TYPES].filter((type) => type !== 'password'));
 
   // Attribute changes that affect the index: labels, and whether something is clickable.
   const INDEXED_ATTRIBUTES = new Set(['aria-label', 'title', 'placeholder', 'alt', 'value',
@@ -62,6 +65,12 @@
   const FOCUS_FIGHT_LIMIT = 6;
   const FOCUS_FIGHT_WINDOW = 400; // ms
   const HINT_WAIT = 150; // ms given to the page's frames to say how much they have to hint
+  // A hint that opens something — a menu, a dialog, a cookie wall — changes the page a moment
+  // after the click rather than during it, so hints worked out there and then are worked out on
+  // the page as it was. This is how long the page has to go quiet before they are worked out
+  // again, and how long that is waited for at all, however restless the page.
+  const SETTLE_QUIET = 120; // ms
+  const SETTLE_LIMIT = 1200; // ms
   const REINDEX_AFTER = 1000; // ms; while typing, re-read a page that keeps changing at most this often
   const MAX_SCAN = 3000; // text occurrences examined per search
   const MAX_MATCHES = 300; // matches kept per search
@@ -144,8 +153,11 @@
     .panel dt { color: #ffb13b; font-weight: 600; white-space: nowrap; }
     .panel dd { margin: 0; color: #c9cdd4; }
     .panel .note { margin: 12px 0 0; color: #7d828b; font-size: 12px; }
-    .tag { background: #ffd400; color: #1f2125; border-radius: 4px; padding: 1px 5px;
-      font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    /* The page shows through a hint, so a hint never quite hides what it sits on. The colour
+       is what gives way; the letter stays as dark as it was, because it is the one thing on a
+       hint that has to be read. */
+    .tag { background: rgba(255, 212, 0, 0.55); color: #1f2125; border-radius: 4px;
+      padding: 1px 5px; font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
     .panel h2 { margin: 13px 0 5px; font: 600 11px/1.3 system-ui, sans-serif;
       text-transform: uppercase; letter-spacing: 0.07em; color: #7d828b; }
     .panel h2:first-of-type { margin-top: 3px; }
@@ -174,9 +186,11 @@
     .twist { flex: none; width: 1em; color: #ffb13b; }
     .foldername { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       font: 600 11px/1.3 system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.07em; }
-    .tag { position: absolute; display: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); }
+    .tag { position: absolute; display: none; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
     .tag.dim { opacity: 0.25; }
-    .tag.hit { background: #ff8a00; }
+    /* The hint being typed is the one that matters, so it gives the least way; the ones it
+       cannot be are dimmed as well, and sit furthest back of all. */
+    .tag.hit { background: rgba(255, 138, 0, 0.72); }
     @media (max-width: 700px) { .detail { display: none; } }
   `;
 
@@ -221,6 +235,9 @@
   let inFrameAt = null; // { id, at }: the current match is that one of that frame's
   let frameSays = ['', '']; // and that is what the frame says Enter would do with it
   let hintTimer = 0;
+  let settleTimer = 0; // waiting for the page to stop changing after a hint was used
+  let settleUntil = 0; // when that wait gives up and works the hints out regardless
+  let handedTo = null; // the field UOKey stepped out of the way of, while it is being typed in
   let list = null; // the LISTS entry being shown, or null for none
   let listItems = [];
   let listMatches = [];
@@ -307,6 +324,10 @@
         if (hit) useHint(hit);
         break;
       }
+      case 'hide':
+        // The page has stepped out of the way of a field. Quietly: it is not switched off.
+        quietly(() => close(false));
+        break;
       case 'stop':
         leaveShort();
         render();
@@ -349,9 +370,21 @@
         if (message.count) frameHints.set(message.from, message.count);
         else frameHints.delete(message.from);
         break;
+      case 'typing':
+        // A field in one of the frames has been given the keyboard, so the bar — and what the
+        // other frames are drawing — is in the way.
+        if (isOpen) stepAside();
+        break;
+      case 'reopen':
+        // That typing is done, so the bar comes back and takes the keyboard with it.
+        if (!isOpen && document.body) open(deepActiveElement());
+        break;
       case 'used':
         // Whatever the frame clicked has very likely changed the page, hints and all.
-        if (isOpen && shortMode) collectHints();
+        if (isOpen && shortMode) {
+          collectHints();
+          settleHints();
+        }
         break;
       default:
     }
@@ -437,7 +470,10 @@
       }
       return;
     }
-    if (!isOpen) return;
+    if (!isOpen) {
+      if (handedTo) fieldKey(e); // stepped aside for a field: watch for the typing being done
+      return;
+    }
     // While the bar is open the keys are the bar's, wherever they were typed. They usually land
     // in the bar's own box, but a popup can be holding the keyboard, and a dialog opened with
     // showModal() shuts the rest of the page out of being focused at all — so going by where a
@@ -512,6 +548,59 @@
     if (isOpen) e.stopImmediatePropagation();
   }
 
+  // UOKey has handed the keyboard to a field and is waiting for that typing to be done, which
+  // is Enter — the key that submits a search, runs a command, sends a message. The keys
+  // themselves are left alone: they belong to the field until then.
+  function fieldKey(e) {
+    if (!e.isTrusted) return;
+    if (deepActiveElement() !== handedTo) {
+      handedTo = null; // the keyboard went somewhere else, and was not UOKey's to wait for
+      return;
+    }
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+    // A one-line field has no line to break, so Enter in it is always the end of the typing.
+    if (handedTo.localName === 'input' || handedTo.localName === 'select') {
+      takeFieldBack();
+      return;
+    }
+    // In a textarea or a contenteditable, Enter usually breaks a line, and breaking a line is
+    // not being finished. It is the end only when the page takes the key for itself, which is
+    // what a terminal, a chat box or a search box does — and what that looks like from in here
+    // is a line that never got broken. Neither is knowable until the page has had the key, so
+    // both are looked at once it has.
+    const field = handedTo;
+    const before = lineBreaks(field);
+    setTimeout(() => {
+      if (handedTo !== field) return;
+      if (e.defaultPrevented || lineBreaks(field) <= before) takeFieldBack();
+    }, 0);
+  }
+
+  // How many lines the text has been broken into. Going up is the one thing that means the
+  // Enter was a line break; the box being sent, cleared or left alone all leave it where it was.
+  function lineBreaks(el) {
+    const text = (el.isContentEditable ? el.innerText : el.value) || '';
+    return text.split('\n').length;
+  }
+
+  // Out of the way of a field, everywhere it is drawn, without being switched off. The frames
+  // draw over themselves and would go on doing it with the bar gone, so they are told as well.
+  function stepAside() {
+    quietly(() => close(false));
+    if (inFrame) toTop({ uokey: 'typing' }); // the bar, and the other frames, belong to the page
+    else toFrames({ uokey: 'hide' });
+  }
+
+  function takeFieldBack() {
+    handedTo = null;
+    if (isOpen) return;
+    if (inFrame) {
+      toTop({ uokey: 'reopen' }); // the bar is the page's; this frame only says when to bring it back
+      return;
+    }
+    if (document.body) open(deepActiveElement());
+  }
+
   // The shortcut, however it got here. Held down, it arrives over and over; that is one press
   // too, or the bar would flicker on and off under the finger.
   function shortcutPressed() {
@@ -571,6 +660,7 @@
 
   function open(before) {
     if (!document.body) return;
+    handedTo = null; // the bar is back, however it got back: there is no field left to wait on
     tellBar(true);
     returnFocus = before;
     if (!ui) ui = createUI();
@@ -675,6 +765,8 @@
     ui.host.remove(); // which takes it out of the top layer as well, keyboard and all
     clearTimeout(hintTimer);
     hintTimer = 0;
+    clearTimeout(settleTimer);
+    settleTimer = 0;
     hintCandidates = [];
     frameCounts.clear();
     frameHints.clear();
@@ -753,6 +845,9 @@
     });
     const observer = new MutationObserver((records) => {
       layerDirty = true;
+      // The page is still moving after a hint was used: give it longer to finish before the
+      // hints are worked out, so what it puts up gets one.
+      if (settleTimer && performance.now() < settleUntil) waitForSettle();
       if (!indexDirty) {
         indexDirty = records.some((r) => r.type !== 'attributes' || INDEXED_ATTRIBUTES.has(r.attributeName));
       }
@@ -1098,8 +1193,14 @@
   function useElement(m, rect, clear) {
     const target = realTarget(m.target);
     if (isTypeable(target) || target.localName === 'select') {
-      close(false);
+      // Quietly. Stepping out of the way of a field is not switching UOKey off, and saying it
+      // was would throw the switch that every other tab and every page opened next goes by: one
+      // hint on a search box would put the bar away everywhere. A page can hide a field behind
+      // anything — learngitbranching.js.org has its terminal behind a home icon, by making the
+      // icon a <label> for it — so this is reached far more often than a field that looks like one.
+      stepAside();
       activate(m, rect);
+      handedTo = target; // until that typing is done: see fieldKey
       return;
     }
     activate(m, rect);
@@ -1245,8 +1346,10 @@
 
       make('h2', '', 'The bar'),
       rows([
-        [shortcutText || 'No shortcut set', 'leave the hints or a list, then switch the bar off'],
+        [shortcutText || 'No shortcut set', 'leave the hints or a list, then switch the bar off; '
+          + 'and take the keyboard back from a field'],
         ['Enter', 'click the orange match, or type in it when it is a field'],
+        ['Enter in a field', 'done typing: the bar comes back and takes the keyboard with it'],
         ['Shift+Enter', 'open a link in a tab behind this one'],
         ['Tab  ↓', 'next match'],
         ['Shift+Tab  ↑', 'previous match'],
@@ -1259,11 +1362,13 @@
       make('h2', '', 'While the hints are up'),
       rows([
         ['a hint key', 'click the thing it sits under'],
+        ['Space', 'work the hints out again, for whatever the page has just put up'],
         [`${COMMAND_PREFIX}short  Esc`, 'put the hints away'],
       ]),
 
       make('p', 'note', 'Things with no text of their own are found by their placeholder, '
-        + 'label, tooltip or picture description. Firefox lets no extension run on its own '
+        + 'label, tooltip or picture description, and a field by whatever has been typed into '
+        + 'it — except a password, which is left alone. Firefox lets no extension run on its own '
         + 'pages, so the bar will not open on a new tab, the home page, any about: page or '
         + 'addons.mozilla.org. Other keys for the bar: about:addons → ⚙ → Manage Extension '
         + 'Shortcuts.'),
@@ -1304,6 +1409,8 @@
     if (!inFrame) toFrames({ uokey: 'stop' });
     clearTimeout(hintTimer);
     hintTimer = 0;
+    clearTimeout(settleTimer);
+    settleTimer = 0;
     shortMode = false;
     hints = [];
     hintCandidates = [];
@@ -1431,6 +1538,17 @@
       setPending('');
       return true;
     }
+    // Space works the hints out again. No hint is spelled with it, and a page that has put
+    // something new up — a menu, a dialog, a cookie wall — since the hints were laid gets hints
+    // on it without leaving !short and coming back.
+    if (e.key === ' ') {
+      e.preventDefault();
+      cancelHint(); // half a hint typed means nothing once the keys are handed out afresh
+      collectHints();
+      showStatus(); // 'looking…', while the frames say what they have, if the page has any
+      render();
+      return true;
+    }
     if (e.key === 'Escape') {
       if (hintPending === null) return false; // nothing half-typed: Esc means put them away
       e.preventDefault();
@@ -1503,9 +1621,30 @@
     }
     if (!isOpen || !shortMode) return;
     // The page has very likely changed, so the hints are worked out again rather than left
-    // pointing at what was there before.
+    // pointing at what was there before — now, for a page that changed under the click, and
+    // again once it has stopped changing, for anything it opens a moment later.
     collectHints();
     render();
+    settleHints();
+  }
+
+  // Work the hints out again once the page has gone quiet. Every change restarts the wait, so a
+  // menu that fades in is hinted when it has arrived rather than while it is still on its way;
+  // SETTLE_LIMIT ends the wait whatever the page is doing, so a page that never settles — a
+  // clock, an advert, a feed — still gets its hints.
+  function settleHints() {
+    settleUntil = performance.now() + SETTLE_LIMIT;
+    waitForSettle();
+  }
+
+  function waitForSettle() {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      settleTimer = 0;
+      if (!isOpen || !shortMode) return;
+      collectHints();
+      render();
+    }, SETTLE_QUIET);
   }
 
 
@@ -1985,6 +2124,14 @@
           addLabel(el, el, el.getAttribute(name));
         }
         if (el.localName === 'input' && /^(button|submit|reset)$/.test(el.type)) addLabel(el, el, el.value);
+        // What has been typed into a field is its text as much as its placeholder is — more so,
+        // because a search box you have already used stops showing the placeholder, and what it
+        // shows instead is what you typed. Read off the property rather than the attribute:
+        // typing changes only the property, which is why nothing marks the index stale for it.
+        // Nothing needs to: the index is built afresh whenever the bar opens, and the bar is
+        // shut while you are typing into the page.
+        if (el.localName === 'textarea'
+          || (el.localName === 'input' && TYPED_TEXT_TYPES.has(el.type))) addLabel(el, el, el.value);
         if (el.localName === 'select') addLabel(el, el, el.selectedOptions[0]?.text);
       }
       for (const img of root.querySelectorAll('img[alt]')) {

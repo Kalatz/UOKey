@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UOKey",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Use Only Keyboard: press Ctrl+Space, type the text of a link, button or field, then press Enter to click it.",
   "permissions": ["bookmarks", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
