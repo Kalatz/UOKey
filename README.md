@@ -9,7 +9,7 @@ or field says, and press Enter to click it.
 
 [![Firefox 128+](https://img.shields.io/badge/Firefox-128%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
 [![Manifest V3](https://img.shields.io/badge/manifest-v3-000033)](manifest.json)
-[![Version 1.3.0](https://img.shields.io/badge/version-1.3.0-000033)](CHANGELOG.md)
+[![Version 1.3.1](https://img.shields.io/badge/version-1.3.1-000033)](CHANGELOG.md)
 [![Data collected: none](https://img.shields.io/badge/data%20collected-none-2ea043)](#permissions)
 
 </div>
@@ -19,7 +19,7 @@ or field says, and press Enter to click it.
 ## Using it
 
 Press <kbd>Ctrl</kbd>+<kbd>Space</kbd>. A small bar opens at the bottom of the page. Type part of
-the text of a link, button or field — `searc` for Amazon's "Search Amazon" box. Every match is
+the text of a link, button or field - `searc` for Amazon's "Search Amazon" box. Every match is
 highlighted, and <kbd>Enter</kbd> clicks the orange one; if it is a text field, Enter puts the
 cursor in it instead, so you can type.
 
@@ -44,7 +44,7 @@ else shows until you ask. The bar moves to the top of the page when it would cov
 | <kbd>Esc</kbd> | close the bar and go back to where you were |
 
 It searches visible text, and also placeholders, labels, tooltips and image descriptions (alt
-text), and whatever you have already typed into a field — so a search box you have half filled in
+text), and whatever you have already typed into a field - so a search box you have half filled in
 is found by your own words, not by the placeholder it has stopped showing. Passwords are left out:
 what the screen stars out, UOKey does not read. Capitals and accents make no difference, so `οδος` finds `Οδός`. Anything the page gives
 the hand cursor counts as clickable, which is how most of the web builds a button out of a plain
@@ -76,7 +76,7 @@ backs out of the hints or a list, and then closes the bar.
 
 **`!short`** puts a small key under every link, button and field on the page. Press that key on
 its own to click the thing it belongs to. The hints stay up afterwards, worked out afresh each
-time, so you can press one button after another — including on whatever the last press opened,
+time, so you can press one button after another - including on whatever the last press opened,
 which is waited for rather than missed. <kbd>Space</kbd> works them out again by hand, for a page
 that has put something up on its own. `!short` again, or <kbd>Esc</kbd>, puts them away.
 
@@ -106,8 +106,8 @@ its window forward if it is in another. Tabs in this window come first.
   not what it was waiting for, the click follows, and then the keys a menu opens with. Nothing is
   pressed twice: each step only happens if the last one left the thing shut.
 - **A menu keeps the keyboard while it is open**, because most shut the moment it leaves them.
-  Keep typing — what you type is still the bar's — and `!back` shuts the menu again.
-- **While the bar is open, what you type is the bar's**, wherever the cursor happens to be — even
+  Keep typing - what you type is still the bar's - and `!back` shuts the menu again.
+- **While the bar is open, what you type is the bar's**, wherever the cursor happens to be - even
   when a cookie wall or a modal dialog has grabbed the keyboard.
 - **Popups that are pages of their own count as part of the page.** UOKey runs in every `<iframe>`
   too, so matches and hints inside a chat box, cookie wall or payment field are found along with
@@ -117,7 +117,7 @@ its window forward if it is in another. Tabs in this window come first.
 
 ## Install
 
-**To keep it** (signed, and not published — the add-on is never listed or shown to anyone else):
+**To keep it** (signed, and not published - the add-on is never listed or shown to anyone else):
 
 1. Run `./build.sh`, which puts `uokey-<version>.zip` in this folder.
 2. Sign in at [addons.mozilla.org](https://addons.mozilla.org/developers/addon/submit/distribution)
@@ -125,8 +125,8 @@ its window forward if it is in another. Tabs in this window come first.
 3. Upload the zip; signing takes a minute or two.
 4. Download the signed `.xpi` and open it in Firefox.
 
-For a new version, raise `version` in [`manifest.json`](manifest.json) first — Firefox will not
-install a version it already has — and note what changed in [`CHANGELOG.md`](CHANGELOG.md).
+For a new version, raise `version` in [`manifest.json`](manifest.json) first - Firefox will not
+install a version it already has - and note what changed in [`CHANGELOG.md`](CHANGELOG.md).
 
 **To try it** (gone again when Firefox closes): open `about:debugging#/runtime/this-firefox`,
 click **Load Temporary Add-on…**, pick `manifest.json`, and reload the tabs you want it in.
@@ -155,6 +155,6 @@ UOKey only reads these, and nothing is sent anywhere.
 
 - Firefox lets no extension run on its own pages, so the bar doesn't open on a new tab or the home
   page, on any other `about:` page, on addons.mozilla.org, or in the PDF viewer and Reader View.
-- A frame UOKey is not allowed into — a sandboxed one, or one on a page of that kind — is a blank
+- A frame UOKey is not allowed into - a sandboxed one, or one on a page of that kind - is a blank
   to it.
 - Text that is part of a picture is only found if the picture has alt text.

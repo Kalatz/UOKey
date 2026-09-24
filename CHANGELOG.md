@@ -5,10 +5,17 @@ shows in `about:addons`.
 
 ---
 
-## 1.3.0 — 24 September 2026
+## 1.3.1 - 24 September 2026
+
+A spelling correction. The long dashes in the comments, the README, this history and the
+two lines UOKey puts on screen are ordinary ones now. Nothing else changed.
+
+---
+
+## 1.3.0 - 24 September 2026
 
 **Menus that only the mouse could open.** Enter on something that opens a menu did nothing when
-the page was waiting for the pointer rather than for a click — a submenu of a menu is the usual
+the page was waiting for the pointer rather than for a click - a submenu of a menu is the usual
 case, and the model picker in Claude Code is one of them. Nothing was ever told the pointer had
 arrived, because only the click itself was mimicked.
 
@@ -16,7 +23,7 @@ The pointer arrives before every click now, the way a real mouse does, and somet
 opens when it is used is given each way in, one at a time, stopping as soon as it is up: the
 pointer, then the click, then <kbd>Enter</kbd>, then the key that kind of menu opens sideways or
 downwards with. Nothing is pressed twice, because each step only happens if the last one left the
-thing shut — a disclosure that opens on a plain click is clicked once and no key follows, and one
+thing shut - a disclosure that opens on a plain click is clicked once and no key follows, and one
 already open is shut rather than opened again. What counts as shut is what the page says about
 itself: `aria-expanded`, `aria-haspopup`, `data-state`, or a `<details>` around a `<summary>`.
 
@@ -26,17 +33,17 @@ you can search what has just opened and press <kbd>Enter</kbd> on what is in it.
 disclosure stays open whatever has the keyboard, so for those the cursor goes back in the box as
 before. The bar says `↵ open`, `↵ expand` or `↵ close` instead of `↵ click`.
 
-**`!back` is Esc for the page.** <kbd>Esc</kbd> in the bar is the bar's own — it backs out of the
-hints or a list, then closes the bar — so the page never sees it, and there was no way to shut a
+**`!back` is Esc for the page.** <kbd>Esc</kbd> in the bar is the bar's own - it backs out of the
+hints or a list, then closes the bar - so the page never sees it, and there was no way to shut a
 menu, a submenu or a dialog without putting UOKey away too. `!back` presses it in the page
 instead and leaves the bar where it was. It goes where the keyboard is, including into a frame
 holding it. What the browser itself put in the top layer answers no key an extension can press,
-so a dialog or popover still up a moment later is asked to go away in its own right — after its
+so a dialog or popover still up a moment later is asked to go away in its own right - after its
 `cancel`, which the page can still refuse.
 
 ---
 
-## 1.2.0 — 23 September 2026
+## 1.2.0 - 23 September 2026
 
 **Scrolling, without leaving the keyboard.** <kbd>&lt;</kbd> and <kbd>&gt;</kbd> nudge the page
 along and <kbd>PageUp</kbd> and <kbd>PageDown</kbd> take it a screen at a time, while the bar is
@@ -53,17 +60,17 @@ everything clickable, not only what is on screen, so scrolling brings the rest o
 under the keys they already have.
 
 <kbd>&lt;</kbd> and <kbd>&gt;</kbd> cost what they are worth. They were ordinary searchable text
-before, so text with one in it — `<div>` in a page of HTML, the `>` in a row of breadcrumbs —
+before, so text with one in it - `<div>` in a page of HTML, the `>` in a row of breadcrumbs -
 can no longer be searched for. That buys a scroll key that is under the fingers already instead
 of across the keyboard.
 
 ---
 
-## 1.1.0 — 23 September 2026
+## 1.1.0 - 23 September 2026
 
 **The hints wait for whatever a click opens.** Pressing a hint that opens a menu, a dialog or a
 cookie wall used to work the hints out while the click was still happening, which is before the
-new thing exists — so the thing you had just opened was the one part of the page with no hint on
+new thing exists - so the thing you had just opened was the one part of the page with no hint on
 it, and you had to leave `!short` and come back. The hints are now worked out again once the page
 stops changing, and at the latest a moment later, so a menu that fades in is hinted when it has
 arrived rather than while it is still on its way.
@@ -76,7 +83,7 @@ because the letter is the one thing on a hint that has to be read. The hints you
 press, once you have typed the first letter of one, sit furthest back of all.
 
 **Clicking a field no longer switches UOKey off.** A field has to have the cursor for you to type
-in it, so the bar steps out of the way — but it was saying it had been switched off when it did,
+in it, so the bar steps out of the way - but it was saying it had been switched off when it did,
 which put the bar away in every other tab and kept it away on every page opened afterwards. A
 page can hide a field behind anything, so this happened far more often than it sounds: on
 learngitbranching.js.org the home icon is a `<label>` for the terminal, and pressing its hint
@@ -88,13 +95,13 @@ that takes more than one line, Enter breaks a line and the bar stays out of the 
 done only when the line was sent rather than broken.
 
 **A field is found by what you have typed into it.** Fields were only ever indexed by their
-placeholder, label or tooltip — and a search box you have already used is showing your words, not
+placeholder, label or tooltip - and a search box you have already used is showing your words, not
 its placeholder, so the one thing on screen was the one thing that could not be searched for.
 Passwords are left out: what the screen stars out, UOKey does not read.
 
 ---
 
-## 1.0.0 — 21 September 2026
+## 1.0.0 - 21 September 2026
 
 The first version.
 

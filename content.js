@@ -65,7 +65,7 @@
   const FOCUS_FIGHT_LIMIT = 6;
   const FOCUS_FIGHT_WINDOW = 400; // ms
   const HINT_WAIT = 150; // ms given to the page's frames to say how much they have to hint
-  // A hint that opens something — a menu, a dialog, a cookie wall — changes the page a moment
+  // A hint that opens something - a menu, a dialog, a cookie wall - changes the page a moment
   // after the click rather than during it, so hints worked out there and then are worked out on
   // the page as it was. This is how long the page has to go quiet before they are worked out
   // again, and how long that is waited for at all, however restless the page.
@@ -216,8 +216,8 @@
   `;
 
   // This copy of UOKey is running inside one of the page's frames rather than in the page
-  // itself. Everything on a page that sits in an <iframe> — a help widget, a cookie wall, a
-  // payment field — is a document of its own that the page cannot read, so UOKey runs in every
+  // itself. Everything on a page that sits in an <iframe> - a help widget, a cookie wall, a
+  // payment field - is a document of its own that the page cannot read, so UOKey runs in every
   // frame as well. The copy in the page owns the bar and everything the user sees; the copies
   // in the frames are its eyes and hands in there.
   const inFrame = window.top !== window;
@@ -403,8 +403,8 @@
         else frameHints.delete(message.from);
         break;
       case 'typing':
-        // A field in one of the frames has been given the keyboard, so the bar — and what the
-        // other frames are drawing — is in the way.
+        // A field in one of the frames has been given the keyboard, so the bar - and what the
+        // other frames are drawing - is in the way.
         if (isOpen) stepAside();
         break;
       case 'scrollpage':
@@ -513,7 +513,7 @@
     }
     // While the bar is open the keys are the bar's, wherever they were typed. They usually land
     // in the bar's own box, but a popup can be holding the keyboard, and a dialog opened with
-    // showModal() shuts the rest of the page out of being focused at all — so going by where a
+    // showModal() shuts the rest of the page out of being focused at all - so going by where a
     // key landed would leave the bar on screen and dead.
     e.stopImmediatePropagation(); // keep the page's own keyboard shortcuts out of it
     if (!e.isTrusted || e.isComposing) return;
@@ -588,7 +588,7 @@
   }
 
   // UOKey has handed the keyboard to a field and is waiting for that typing to be done, which
-  // is Enter — the key that submits a search, runs a command, sends a message. The keys
+  // is Enter - the key that submits a search, runs a command, sends a message. The keys
   // themselves are left alone: they belong to the field until then.
   function fieldKey(e) {
     if (!e.isTrusted) return;
@@ -604,7 +604,7 @@
     }
     // In a textarea or a contenteditable, Enter usually breaks a line, and breaking a line is
     // not being finished. It is the end only when the page takes the key for itself, which is
-    // what a terminal, a chat box or a search box does — and what that looks like from in here
+    // what a terminal, a chat box or a search box does - and what that looks like from in here
     // is a line that never got broken. Neither is knowable until the page has had the key, so
     // both are looked at once it has.
     const field = handedTo;
@@ -754,7 +754,7 @@
     return !!el && (el.localName === 'iframe' || el.localName === 'frame');
   }
 
-  // Something in the page took the keyboard away — a cookie wall or a newsletter box opening
+  // Something in the page took the keyboard away - a cookie wall or a newsletter box opening
   // and putting the cursor in itself, or the focus trap such a thing usually comes with. The
   // bar takes it back, unless the bar was the one handing it over. A page that will not let go
   // is left holding it rather than being fought frame after frame; the keys still reach the bar
@@ -923,7 +923,7 @@
       ui.verb.textContent = hintPending || 'hints';
       ui.detail.textContent = hintPending ? 'keep going'
         : (shown
-          ? `${shown} on this page — ${COMMAND_PREFIX}short or Esc to stop`
+          ? `${shown} on this page - ${COMMAND_PREFIX}short or Esc to stop`
           : (hintTimer ? 'looking…' : 'nothing on this page can be clicked'));
       ui.extras.classList.add('on');
       return;
@@ -1042,7 +1042,7 @@
   // A dialog opened with showModal(), and anything shown as a popover, is not in the page's
   // stacking order at all: Firefox puts it in the top layer, above every z-index there is, so
   // no amount of being last wins against it. The bar is shown as a popover itself for that, and
-  // the top layer goes by the same rule — last one shown is on top — so it is shown again
+  // the top layer goes by the same rule - last one shown is on top - so it is shown again
   // whenever the page has put something new up there.
   //
   // Either move takes the keyboard with it, so it is handed back afterwards.
@@ -1214,8 +1214,8 @@
   }
 
   // Whatever the match you are on sits in, so a long menu, a chat panel or a list of results
-  // moves on its own rather than the page behind it. With nothing to go on — nothing found yet,
-  // or nothing that scrolls around it — the page itself moves, which is what you meant anyway.
+  // moves on its own rather than the page behind it. With nothing to go on - nothing found yet,
+  // or nothing that scrolls around it - the page itself moves, which is what you meant anyway.
   function scrollAt(by) {
     if (inFrameAt) {
       toFrame(inFrameAt.id, { uokey: 'scroll', by }); // the match is in there; so is what holds it
@@ -1306,8 +1306,8 @@
       // Quietly. Stepping out of the way of a field is not switching UOKey off, and saying it
       // was would throw the switch that every other tab and every page opened next goes by: one
       // hint on a search box would put the bar away everywhere. A page can hide a field behind
-      // anything — learngitbranching.js.org has its terminal behind a home icon, by making the
-      // icon a <label> for it — so this is reached far more often than a field that looks like one.
+      // anything - learngitbranching.js.org has its terminal behind a home icon, by making the
+      // icon a <label> for it - so this is reached far more often than a field that looks like one.
       stepAside();
       activate(m, rect);
       handedTo = target; // until that typing is done: see fieldKey
@@ -1380,8 +1380,8 @@
     const clickEl = m.clickEl.isConnected ? m.clickEl : el;
     const x = rect ? rect.left + rect.width / 2 : 0;
     const y = rect ? rect.top + rect.height / 2 : 0;
-    // A mouse is over a thing before it clicks it, and a menu that opens under the pointer —
-    // a submenu of a menu most of all — is waiting for that and for nothing else.
+    // A mouse is over a thing before it clicks it, and a menu that opens under the pointer -
+    // a submenu of a menu most of all - is waiting for that and for nothing else.
     hover(clickEl, el, x, y);
     el.focus({ preventScroll: true });
     if (opensSomething(el) && isShowing(el) === false) {
@@ -1398,8 +1398,8 @@
   }
 
   // The pointer arriving: everything the page is told before a click, and all a menu that opens
-  // on hover is ever told. Nothing is told the pointer left again — a submenu takes that for the
-  // pointer wandering off and shuts itself — and the real mouse clears the hover when it moves.
+  // on hover is ever told. Nothing is told the pointer left again - a submenu takes that for the
+  // pointer wandering off and shuts itself - and the real mouse clears the hover when it moves.
   function hover(el, owner, x, y) {
     for (const type of ['pointerover', 'mouseover']) fire(el, type, x, y);
     // enter is the one event that never bubbles: a pointer arriving sets it off on every thing
@@ -1510,8 +1510,8 @@
   }
 
   // The keyboard is left with the page while a menu UOKey opened is up: pulling it back into the
-  // bar would shut the menu. Until the page says the menu has gone — or it takes too long to say
-  // anything at all — the keys reach the bar where they land (see onKeyDown) and the bar waits.
+  // bar would shut the menu. Until the page says the menu has gone - or it takes too long to say
+  // anything at all - the keys reach the bar where they land (see onKeyDown) and the bar waits.
   function pageKeepsKeys() {
     if (!opened) return false;
     if (opened.el.isConnected
@@ -1587,7 +1587,7 @@
 
   function fillHelp(panel) {
     panel.append(
-      make('h1', '', 'UOKey — Use Only Keyboard'),
+      make('h1', '', 'UOKey - Use Only Keyboard'),
       make('p', '', 'Type part of what you can read on a link, button or field. Capitals, '
         + 'accents and the keyboard you type in make no difference.'),
 
@@ -1617,7 +1617,7 @@
 
       make('p', 'note', 'Things with no text of their own are found by their placeholder, '
         + 'label, tooltip or picture description, and a field by whatever has been typed into '
-        + 'it — except a password, which is left alone. Firefox lets no extension run on its own '
+        + 'it - except a password, which is left alone. Firefox lets no extension run on its own '
         + 'pages, so the bar will not open on a new tab, the home page, any about: page or '
         + 'addons.mozilla.org. Other keys for the bar: about:addons → ⚙ → Manage Extension '
         + 'Shortcuts.'),
@@ -1633,7 +1633,7 @@
   // ---- !back: Esc for the page --------------------------------------------------------------
 
   // Esc pressed in the bar is the bar's own: it puts the hints or a list away, then closes the
-  // bar, and the page never sees it. !back is Esc for the page instead — it shuts the menu,
+  // bar, and the page never sees it. !back is Esc for the page instead - it shuts the menu,
   // submenu or dialog the page has open, and leaves the bar exactly where it was.
   function pressEscape() {
     ui.input.value = '';
@@ -1850,7 +1850,7 @@
       return true;
     }
     // Space works the hints out again. No hint is spelled with it, and a page that has put
-    // something new up — a menu, a dialog, a cookie wall — since the hints were laid gets hints
+    // something new up - a menu, a dialog, a cookie wall - since the hints were laid gets hints
     // on it without leaving !short and coming back.
     if (e.key === ' ') {
       e.preventDefault();
@@ -1932,7 +1932,7 @@
     }
     if (!isOpen || !shortMode) return;
     // The page has very likely changed, so the hints are worked out again rather than left
-    // pointing at what was there before — now, for a page that changed under the click, and
+    // pointing at what was there before - now, for a page that changed under the click, and
     // again once it has stopped changing, for anything it opens a moment later.
     collectHints();
     render();
@@ -1941,8 +1941,8 @@
 
   // Work the hints out again once the page has gone quiet. Every change restarts the wait, so a
   // menu that fades in is hinted when it has arrived rather than while it is still on its way;
-  // SETTLE_LIMIT ends the wait whatever the page is doing, so a page that never settles — a
-  // clock, an advert, a feed — still gets its hints.
+  // SETTLE_LIMIT ends the wait whatever the page is doing, so a page that never settles - a
+  // clock, an advert, a feed - still gets its hints.
   function settleHints() {
     settleUntil = performance.now() + SETTLE_LIMIT;
     waitForSettle();
@@ -2435,7 +2435,7 @@
           addLabel(el, el, el.getAttribute(name));
         }
         if (el.localName === 'input' && /^(button|submit|reset)$/.test(el.type)) addLabel(el, el, el.value);
-        // What has been typed into a field is its text as much as its placeholder is — more so,
+        // What has been typed into a field is its text as much as its placeholder is - more so,
         // because a search box you have already used stops showing the placeholder, and what it
         // shows instead is what you typed. Read off the property rather than the attribute:
         // typing changes only the property, which is why nothing marks the index stale for it.
