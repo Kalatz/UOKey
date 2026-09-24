@@ -5,6 +5,37 @@ shows in `about:addons`.
 
 ---
 
+## 1.3.0 — 24 September 2026
+
+**Menus that only the mouse could open.** Enter on something that opens a menu did nothing when
+the page was waiting for the pointer rather than for a click — a submenu of a menu is the usual
+case, and the model picker in Claude Code is one of them. Nothing was ever told the pointer had
+arrived, because only the click itself was mimicked.
+
+The pointer arrives before every click now, the way a real mouse does, and something shut that
+opens when it is used is given each way in, one at a time, stopping as soon as it is up: the
+pointer, then the click, then <kbd>Enter</kbd>, then the key that kind of menu opens sideways or
+downwards with. Nothing is pressed twice, because each step only happens if the last one left the
+thing shut — a disclosure that opens on a plain click is clicked once and no key follows, and one
+already open is shut rather than opened again. What counts as shut is what the page says about
+itself: `aria-expanded`, `aria-haspopup`, `data-state`, or a `<details>` around a `<summary>`.
+
+A menu that has just been opened is left holding the keyboard, since most of them shut the moment
+it leaves them. Nothing is lost by it: what you type is still the bar's wherever the keys land, so
+you can search what has just opened and press <kbd>Enter</kbd> on what is in it. A panel or a
+disclosure stays open whatever has the keyboard, so for those the cursor goes back in the box as
+before. The bar says `↵ open`, `↵ expand` or `↵ close` instead of `↵ click`.
+
+**`!back` is Esc for the page.** <kbd>Esc</kbd> in the bar is the bar's own — it backs out of the
+hints or a list, then closes the bar — so the page never sees it, and there was no way to shut a
+menu, a submenu or a dialog without putting UOKey away too. `!back` presses it in the page
+instead and leaves the bar where it was. It goes where the keyboard is, including into a frame
+holding it. What the browser itself put in the top layer answers no key an extension can press,
+so a dialog or popover still up a moment later is asked to go away in its own right — after its
+`cancel`, which the page can still refuse.
+
+---
+
 ## 1.2.0 — 23 September 2026
 
 **Scrolling, without leaving the keyboard.** <kbd>&lt;</kbd> and <kbd>&gt;</kbd> nudge the page

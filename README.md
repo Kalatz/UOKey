@@ -9,7 +9,7 @@ or field says, and press Enter to click it.
 
 [![Firefox 128+](https://img.shields.io/badge/Firefox-128%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
 [![Manifest V3](https://img.shields.io/badge/manifest-v3-000033)](manifest.json)
-[![Version 1.2.0](https://img.shields.io/badge/version-1.2.0-000033)](CHANGELOG.md)
+[![Version 1.3.0](https://img.shields.io/badge/version-1.3.0-000033)](CHANGELOG.md)
 [![Data collected: none](https://img.shields.io/badge/data%20collected-none-2ea043)](#permissions)
 
 </div>
@@ -65,9 +65,14 @@ its own to see the list.
 | Command | What it does |
 | --- | --- |
 | `!help` | what UOKey does, and every key it uses |
+| `!back` | press Esc in the page, without closing the bar |
 | `!short` | put a hint key on everything clickable |
 | `!marks` | find one of your bookmarks and open it |
 | `!tabs` | find one of your open tabs and go to it |
+
+**`!back`** presses <kbd>Esc</kbd> in the page itself, which shuts the menu, submenu or dialog
+the page has open, and leaves the bar where it was. <kbd>Esc</kbd> on its own is the bar's: it
+backs out of the hints or a list, and then closes the bar.
 
 **`!short`** puts a small key under every link, button and field on the page. Press that key on
 its own to click the thing it belongs to. The hints stay up afterwards, worked out afresh each
@@ -96,6 +101,12 @@ its window forward if it is in another. Tabs in this window come first.
   until that typing is done. It comes back when you press <kbd>Enter</kbd> in the field, or as
   soon as you press <kbd>Ctrl</kbd>+<kbd>Space</kbd>. Stepping aside is not switching UOKey off:
   your other tabs keep theirs, and the next page you open still has it.
+- **Menus open for Enter as they do for the mouse.** UOKey moves the pointer onto a thing before
+  it clicks it, so a menu that only opens when the mouse arrives opens all the same; if that is
+  not what it was waiting for, the click follows, and then the keys a menu opens with. Nothing is
+  pressed twice: each step only happens if the last one left the thing shut.
+- **A menu keeps the keyboard while it is open**, because most shut the moment it leaves them.
+  Keep typing — what you type is still the bar's — and `!back` shuts the menu again.
 - **While the bar is open, what you type is the bar's**, wherever the cursor happens to be — even
   when a cookie wall or a modal dialog has grabbed the keyboard.
 - **Popups that are pages of their own count as part of the page.** UOKey runs in every `<iframe>`

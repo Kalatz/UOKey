@@ -86,8 +86,23 @@
   const HINT_ALPHABET = 'asdfghjklqwertyuiopzxcvbnm';
   const MAX_HINTS = 676; // as many as two letters of the alphabet can name
   const TAG_OVER = 2; // px a hint sits over the bottom edge of its thing, so they read as one
+  // A menu that opens when the pointer arrives takes a moment about it, and clicking something
+  // already open would shut it again: how long each step waits to see before the next one tries.
+  const HOVER_OPEN = 150; // ms the pointer is left on a thing before the click follows
+  const KEY_OPEN = 120; // ms the click is given before the keys a menu opens for try instead
+  const OPEN_GRACE = 700; // ms something just opened has to say so before the bar takes the keys
+  // What aria-haspopup says hangs off a thing: a menu of some kind rather than nothing at all.
+  const POPUP_KINDS = new Set(['true', 'menu', 'listbox', 'tree', 'grid', 'dialog']);
+  // What the widget libraries write in data-state while what a thing opens is up, or is not.
+  const OPEN_STATES = new Set(['open', 'expanded', 'visible']);
+  const CLOSED_STATES = new Set(['closed', 'collapsed', 'hidden']);
+  // The old numbers of the keys UOKey presses for the page; plenty of pages still read them.
+  const KEY_NUMBERS = { Enter: 13, Escape: 27, ArrowLeft: 37, ArrowRight: 39, ArrowDown: 40 };
   const COMMANDS = [
     { name: 'help', summary: 'what UOKey does, and every key it uses', fill: fillHelp },
+    { name: 'back',
+      summary: 'press Esc in the page, without closing the bar',
+      run: pressEscape },
     { name: 'short',
       summary: 'a hint key on everything clickable; press one to use it',
       run: startShort },
@@ -225,6 +240,8 @@
   let commandMatches = [];
   let leaving = false; // the page is going; closing the bar now is not the user's doing
   let claimingFocus = false; // the bar is handing the keyboard to the page on purpose
+  let opened = null; // { el, at }: a menu UOKey has opened, which the keyboard is left with
+  let sendingKey = false; // a key UOKey is pressing for the page: not one of the bar's own
   let focusFights = 0; // times running the page has taken the keyboard straight back
   let focusFightAt = 0;
   let layered = -1; // how many dialogs and popovers the page had in the top layer, last look
@@ -338,6 +355,10 @@
       case 'hide':
         // The page has stepped out of the way of a field. Quietly: it is not switched off.
         quietly(() => close(false));
+        break;
+      case 'back':
+        // Esc passed in from the bar, because this frame is where the keyboard is.
+        if (document.hasFocus()) escapeThePage();
         break;
       case 'stop':
         leaveShort();
@@ -471,6 +492,7 @@
   // ---- Keyboard -------------------------------------------------------------------------------
 
   function onKeyDown(e) {
+    if (sendingKey) return; // a key UOKey is pressing for the page itself (see keyPress)
     if (e.isTrusted && matchesShortcut(e)) {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -545,11 +567,12 @@
     // The page may only have blurred the box rather than be holding on to it, in which case
     // this is the last key that has to be put there by hand. A key passed out of a frame is a
     // different matter: the keyboard is meant to be in there.
-    if (mayClaimFocus() && !keyboardInFrame()) focusBar();
+    if (mayClaimFocus() && !keyboardInFrame() && !pageKeepsKeys()) focusBar();
     onTyped();
   }
 
   function onKeyUp(e) {
+    if (sendingKey) return;
     if (swallowKeyUp && e.code === swallowKeyUp) {
       // The key that clicked something or closed the bar: its release is ours too.
       swallowKeyUp = '';
@@ -561,7 +584,7 @@
   }
 
   function stopIfOurs(e) {
-    if (isOpen) e.stopImmediatePropagation();
+    if (isOpen && !sendingKey) e.stopImmediatePropagation();
   }
 
   // UOKey has handed the keyboard to a field and is waiting for that typing to be done, which
@@ -719,7 +742,7 @@
 
   // The page got the keyboard (back) while the bar is open: the cursor belongs in the bar.
   function onPageFocus() {
-    if (!barHasFocus() && !keyboardInFrame()) focusBar();
+    if (!barHasFocus() && !keyboardInFrame() && !pageKeepsKeys()) focusBar();
     ui.input.placeholder = PLACEHOLDER;
   }
 
@@ -744,7 +767,7 @@
     const now = performance.now();
     focusFights = now - focusFightAt < FOCUS_FIGHT_WINDOW ? focusFights + 1 : 1;
     focusFightAt = now;
-    if (mayClaimFocus()) focusBar();
+    if (mayClaimFocus() && !pageKeepsKeys()) focusBar();
   }
 
   // Whether pulling the keyboard back is worth another go: a page answering every pull with one
@@ -794,6 +817,7 @@
     focusFights = 0;
     matches = [];
     index = null;
+    opened = null;
     shortMode = false;
     hints = [];
     hintPending = null;
@@ -965,6 +989,12 @@
     if (kind === 'checkbox' || kind === 'radio' || kind === 'switch') return ['toggle', ''];
     const link = el.closest('a[href]');
     if (link) return ['open link', /^https?:/.test(link.href) ? link.href.replace(/^https?:\/\/(www\.)?/, '') : ''];
+    if (opensSomething(target)) {
+      const showing = isShowing(target);
+      if (showing === true) return ['close', ''];
+      const menu = (target.getAttribute('aria-haspopup') || '').toLowerCase();
+      return [POPUP_KINDS.has(menu) ? 'open' : 'expand', ''];
+    }
     return ['click', ''];
   }
 
@@ -1283,9 +1313,14 @@
       handedTo = target; // until that typing is done: see fieldKey
       return;
     }
+    opened = null; // this is a new thing to use: whatever was open before is not its doing
+    const opening = keepsKeys(target); // a menu about to be opened, rather than shut again
     activate(m, rect);
     if (!isOpen) return; // it was a link, and the page is on its way somewhere else
-    focusBar();
+    // A menu that has just been opened keeps the keyboard, because most shut the moment it
+    // leaves them. The bar reads the keys wherever they land, so it loses nothing by letting it.
+    if (opening) opened = { el: target, at: performance.now() };
+    if (!pageKeepsKeys()) focusBar();
     indexDirty = true; // whatever was clicked has probably changed the page
     if (clear) {
       ui.input.value = ''; // done with: the box is ready for the next thing rather than the last
@@ -1345,15 +1380,50 @@
     const clickEl = m.clickEl.isConnected ? m.clickEl : el;
     const x = rect ? rect.left + rect.width / 2 : 0;
     const y = rect ? rect.top + rect.height / 2 : 0;
+    // A mouse is over a thing before it clicks it, and a menu that opens under the pointer —
+    // a submenu of a menu most of all — is waiting for that and for nothing else.
+    hover(clickEl, el, x, y);
     el.focus({ preventScroll: true });
-    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) fire(clickEl, type, x, y);
-    if (typeof clickEl.click === 'function') clickEl.click();
-    else fire(clickEl, 'click', x, y);
+    if (opensSomething(el) && isShowing(el) === false) {
+      openUp(el, clickEl, x, y); // the pointer may be enough; clicking then would shut it again
+      return;
+    }
+    press(clickEl, x, y);
+  }
+
+  function press(el, x, y) {
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) fire(el, type, x, y);
+    if (typeof el.click === 'function') el.click();
+    else fire(el, 'click', x, y);
+  }
+
+  // The pointer arriving: everything the page is told before a click, and all a menu that opens
+  // on hover is ever told. Nothing is told the pointer left again — a submenu takes that for the
+  // pointer wandering off and shuts itself — and the real mouse clears the hover when it moves.
+  function hover(el, owner, x, y) {
+    for (const type of ['pointerover', 'mouseover']) fire(el, type, x, y);
+    // enter is the one event that never bubbles: a pointer arriving sets it off on every thing
+    // it has come into, the outermost first, and not only on the innermost.
+    for (const node of chain(el, owner)) {
+      for (const type of ['pointerenter', 'mouseenter']) fire(node, type, x, y);
+    }
+    for (const type of ['pointermove', 'mousemove']) fire(el, type, x, y);
+  }
+
+  // From the link or button the pointer has come into, in, to the very text it is over.
+  function chain(from, to) {
+    const list = [];
+    for (let el = from; el; el = el.parentElement) {
+      list.unshift(el);
+      if (el === to) break;
+    }
+    return list;
   }
 
   function fire(el, type, x, y) {
     const init = {
-      bubbles: true, cancelable: true, composed: true, view: window, detail: 1,
+      // enter and leave are the two that are only ever about the thing itself, never its parents.
+      bubbles: !type.endsWith('enter'), cancelable: true, composed: true, view: window, detail: 1,
       clientX: x, clientY: y, button: 0, buttons: type.endsWith('down') ? 1 : 0,
     };
     el.dispatchEvent(type.startsWith('pointer')
@@ -1370,6 +1440,103 @@
 
   function isDisabled(el) {
     return el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true';
+  }
+
+  // ---- Things that open rather than do ---------------------------------------------------------
+
+  // A menu, a submenu, a dropdown, a disclosure. The page says so itself: aria-haspopup on what
+  // a menu hangs off, aria-expanded on what opens and shuts, a <summary> on its <details>.
+  function opensSomething(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el.localName === 'summary') return true;
+    if (el.hasAttribute('aria-expanded')) return true;
+    return POPUP_KINDS.has((el.getAttribute('aria-haspopup') || '').toLowerCase());
+  }
+
+  // Whether what it opens is up: true, false, or null when the page keeps that to itself and
+  // only it knows. data-state is where most of the widget libraries put it.
+  function isShowing(el) {
+    if (!el || el.nodeType !== 1) return null;
+    if (el.localName === 'summary') {
+      const details = el.closest('details');
+      return details ? !!details.open : null;
+    }
+    const expanded = el.getAttribute('aria-expanded');
+    if (expanded === 'true' || expanded === 'false') return expanded === 'true';
+    const state = (el.getAttribute('data-state') || '').toLowerCase();
+    if (OPEN_STATES.has(state)) return true;
+    if (CLOSED_STATES.has(state)) return false;
+    return null;
+  }
+
+  // Something shut that opens when it is used. The pointer is on it already; if that was enough
+  // there is nothing left to do, and clicking what is now open would only shut it again. So each
+  // step waits to see what the last one did, and stops as soon as the thing is up: the pointer,
+  // then the click, then Enter, then the key that kind of menu opens sideways or downwards with.
+  function openUp(el, clickEl, x, y) {
+    setTimeout(() => {
+      if (!el.isConnected || isShowing(el) !== false) return;
+      claimingFocus = true; // the click may move the keyboard: still the bar's doing, not a theft
+      try {
+        press(clickEl, x, y);
+      } finally {
+        claimingFocus = false;
+      }
+      openWithKey(el, 'Enter', submenuKey(el));
+    }, HOVER_OPEN);
+  }
+
+  function openWithKey(el, key, next) {
+    setTimeout(() => {
+      if (!el.isConnected || isShowing(el) !== false) return;
+      keyPress(el, key);
+      if (next) openWithKey(el, next, '');
+    }, KEY_OPEN);
+  }
+
+  // A submenu opens sideways, whichever way the page is written; anything else opens downwards.
+  function submenuKey(el) {
+    if (!/^menuitem/.test(el.getAttribute('role') || '')) return 'ArrowDown';
+    return getComputedStyle(el).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight';
+  }
+
+  // Which shut things are worth leaving the keyboard with once they open: a menu, a submenu or
+  // a dropdown, which shut again as soon as the keyboard leaves them. A panel or a disclosure
+  // stays open whatever has the keyboard, and the cursor is better off back in the box.
+  function keepsKeys(el) {
+    if (!opensSomething(el) || isShowing(el) !== false) return false;
+    if (POPUP_KINDS.has((el.getAttribute('aria-haspopup') || '').toLowerCase())) return true;
+    return /^(menuitem|combobox)/.test(el.getAttribute('role') || '');
+  }
+
+  // The keyboard is left with the page while a menu UOKey opened is up: pulling it back into the
+  // bar would shut the menu. Until the page says the menu has gone — or it takes too long to say
+  // anything at all — the keys reach the bar where they land (see onKeyDown) and the bar waits.
+  function pageKeepsKeys() {
+    if (!opened) return false;
+    if (opened.el.isConnected
+      && (isShowing(opened.el) !== false || performance.now() - opened.at < OPEN_GRACE)) {
+      return true;
+    }
+    opened = null;
+    return false;
+  }
+
+  // A key pressed for the page. UOKey's own listener runs before the page's and keeps every key
+  // to the bar while it is open (see onKeyDown), so the ones it sends on purpose say so.
+  function keyPress(el, key) {
+    if (!el || !el.isConnected) return;
+    sendingKey = true;
+    try {
+      for (const type of ['keydown', 'keyup']) {
+        el.dispatchEvent(new KeyboardEvent(type, {
+          key, code: key, keyCode: KEY_NUMBERS[key] || 0, charCode: 0,
+          bubbles: true, cancelable: true, composed: true, view: window,
+        }));
+      }
+    } finally {
+      sendingKey = false;
+    }
   }
 
   // ---- Commands -------------------------------------------------------------------------------
@@ -1461,6 +1628,68 @@
     const list = make('dl');
     for (const [keys, what] of pairs) list.append(make('dt', '', keys), make('dd', '', what));
     return list;
+  }
+
+  // ---- !back: Esc for the page --------------------------------------------------------------
+
+  // Esc pressed in the bar is the bar's own: it puts the hints or a list away, then closes the
+  // bar, and the page never sees it. !back is Esc for the page instead — it shuts the menu,
+  // submenu or dialog the page has open, and leaves the bar exactly where it was.
+  function pressEscape() {
+    ui.input.value = '';
+    hidePanel();
+    if (keyboardInFrame()) toFrames({ uokey: 'back' }); // the keys are in there, so Esc is too
+    else escapeThePage();
+    opened = null; // whatever the bar was leaving the keyboard for has just been shut
+    if (!keyboardInFrame() && mayClaimFocus()) focusBar();
+    runSearch(); // the page has changed, and the box is ready for the next thing
+  }
+
+  // Esc where the keyboard is, in the page or in the frame it was passed into.
+  function escapeThePage() {
+    const up = topLayerThing();
+    keyPress(escapeTarget(), 'Escape');
+    // What the browser itself put on top only answers a real Esc, which no extension can press.
+    // If it is still there a moment later, it is asked to go away in its own right.
+    if (up) setTimeout(() => dismiss(up), KEY_OPEN);
+    indexDirty = true;
+  }
+
+  // Where a real Esc would land: whatever in the page holds the keyboard, or else the menu the
+  // bar has open or the thing the keyboard came from. The key goes up from there, which is how
+  // a page watching for Esc hears it, wherever it happens to be listening.
+  function escapeTarget() {
+    const el = deepActiveElement();
+    const ours = ui.input.getRootNode();
+    if (el && el.isConnected && el !== ui.host && el !== document.body
+      && el.getRootNode() !== ours) return el;
+    if (opened && opened.el.isConnected) return opened.el;
+    if (returnFocus && returnFocus.isConnected && returnFocus !== document.body) return returnFocus;
+    return document.body || document.documentElement;
+  }
+
+  // The last dialog or popover the page has up, which is the one on top. The bar's own is not
+  // the page's and never counts.
+  function topLayerThing() {
+    try {
+      const up = [...document.querySelectorAll(':modal, :popover-open')]
+        .filter((el) => el !== ui.host);
+      return up[up.length - 1] || null;
+    } catch {
+      return null; // an older Firefox that doesn't know the selectors has no top layer to shut
+    }
+  }
+
+  function dismiss(el) {
+    if (!el.isConnected) return;
+    try {
+      if (el.localName === 'dialog' && el.matches(':modal')) {
+        // What Esc does to a dialog: ask first, and leave it alone if the page says no.
+        if (el.dispatchEvent(new Event('cancel', { cancelable: true }))) el.close();
+      } else if (el.matches(':popover-open') && el.popover !== 'manual') {
+        el.hidePopover(); // a manual popover is not one Esc closes either
+      }
+    } catch { /* it has gone, or will not be told */ }
   }
 
   // ---- !short: a hint key on everything ---------------------------------------------------
