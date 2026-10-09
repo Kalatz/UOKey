@@ -10,7 +10,7 @@ or field says, and press Enter to click it.
 <a href="https://addons.mozilla.org/firefox/addon/uokey/"><img src="images/get-the-addon.svg" alt="Get the add-on for Firefox" height="58"></a>
 
 [![Firefox 142+](https://img.shields.io/badge/Firefox-142%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
-[![Version 1.4.2](https://img.shields.io/badge/version-1.4.2-000033)](CHANGELOG.md)
+[![Version 1.5.1](https://img.shields.io/badge/version-1.5.1-000033)](CHANGELOG.md)
 [![Data collected: none](https://img.shields.io/badge/data%20collected-none-2ea043)](#permissions)
 [![GitHub stars](https://img.shields.io/github/stars/Kalatz/UOKey?style=flat&logo=github&label=stars)](https://github.com/Kalatz/UOKey/stargazers)
 
@@ -39,6 +39,7 @@ else shows until you ask. The bar moves to the top of the page when it would cov
 | <kbd>Shift</kbd>+<kbd>Tab</kbd> or <kbd>↑</kbd> | previous match |
 | <kbd>&lt;</kbd> and <kbd>&gt;</kbd> | nudge whatever the match sits in, or the page; hold to keep going |
 | <kbd>PageUp</kbd> and <kbd>PageDown</kbd> | the same, a screen at a time |
+| <kbd>←</kbd> and <kbd>→</kbd> | after `!video`, skip the video back and on, while the box is empty |
 | <kbd>Esc</kbd> | close the bar and go back to where you were |
 
 It searches visible text, and also placeholders, labels, tooltips and image descriptions (alt
@@ -70,6 +71,10 @@ is `!short`.
 | `!tabs` | `!t` | find one of your open tabs and go to it |
 | `!last` | `!l` | go back to the tab you were on before this one |
 | `!1` … `!9` | | go to that tab in this window |
+| `!copy` | `!c` | Enter copies what you find instead of clicking it |
+| `!video` | `!v` | play or pause the video on the page |
+| `!up` | `!u` | all the way to the top of the page |
+| `!down` | `!d` | all the way to the bottom of the page |
 | `!fast` | `!f` | run a command by its letter alone, with no Enter |
 | `!github` | | open UOKey's page on GitHub |
 
@@ -108,6 +113,24 @@ again comes straight back, so it flips between two tabs. UOKey keeps the order y
 in until Firefox closes; just after it starts, before you have switched anywhere, `!last` goes to
 the tab in this window you left most recently.
 
+**`!copy`** changes what <kbd>Enter</kbd> does for one search: it copies the match instead of
+clicking it. While it is on, plain text counts as a match as well as things that can be clicked,
+and the bar shows what Enter will copy - what is typed in a field, a block of code whole, anything
+short whole, and out of a long paragraph only the words you found, so a tracking number in the
+middle of a sentence copies as the number. Enter with nothing typed copies the page's address. A
+password is never copied. Once it has copied, the bar says what it took and goes back to clicking;
+<kbd>Esc</kbd> leaves `!copy` without copying anything.
+
+**`!video`** plays or pauses the video on the page. One that is playing comes first, so `!video`
+stops it even when it has scrolled out of sight; otherwise it starts the biggest one on screen.
+Videos in frames, which is how most sites embed them, count as well. Afterwards <kbd>←</kbd> and
+<kbd>→</kbd> skip it back and on 5 seconds while the box is empty, as most players do (`<` and `>`
+were already taken by scrolling).
+
+**`!up`** and **`!down`** go all the way to the top or the bottom of the page. <kbd>Home</kbd> and
+<kbd>End</kbd> would, but while the bar is open they belong to the box. On a web app whose page
+doesn't scroll, the biggest panel on screen that does is scrolled instead.
+
 **`!fast`** makes the letter the whole command: `!s` puts the hints up the moment it is typed, with
 no <kbd>Enter</kbd>. While it is on, the full names stop working, because the first letter has run
 the command before the rest arrives - typing `!short` in full puts the hints up at `!s` and then
@@ -125,8 +148,8 @@ you, a star there helps other people find it.
 - **The bar is a switch for the whole browser.** Turn it on and it is waiting in every tab and on
   every page you open, through links and reloads, until you turn it off. Only Ctrl+Space, Esc or a
   real mouse click on the page puts it away; closing Firefox forgets it.
-- **Ctrl+Space and Esc back out one step at a time**: `!help` first, then the hints or a list, then
-  the bar.
+- **Ctrl+Space and Esc back out one step at a time**: `!help` first, then the hints, a list or
+  `!copy`, then the bar.
 - **A command leaves the box empty**, ready for the next thing. What `!help` shows stays up until
   the next key, which puts it away and then does what it always does.
 - **Enter leaves the bar open** and empties the box, ready for the next thing. The one exception

@@ -122,6 +122,22 @@
       letter: 'l',
       summary: 'go back to the tab you were on before this one',
       run: () => goToTab('last-tab', 'There is no tab to go back to') },
+    { name: 'copy',
+      letter: 'c',
+      summary: 'Enter copies what you find instead of clicking it; on its own, the address',
+      run: startCopy },
+    { name: 'video',
+      letter: 'v',
+      summary: 'play or pause the video on the page; then ← and → skip it back and on',
+      run: playPause },
+    { name: 'up',
+      letter: 'u',
+      summary: 'all the way to the top of the page',
+      run: () => scrollToEnd(false) },
+    { name: 'down',
+      letter: 'd',
+      summary: 'all the way to the bottom of the page',
+      run: () => scrollToEnd(true) },
     { name: 'fast',
       letter: 'f',
       summary: 'a command\'s letter runs it straight away, with no Enter; again to stop',
@@ -142,6 +158,13 @@
   const SCREENFUL = 0.9; // of the height, leaving a line or two to read across
   const MAX_LIST = 200; // bookmarks or tabs listed at once
   const SHORT_PLACEHOLDER = 'Press a hint key…';
+  const COPY_PLACEHOLDER = 'Find the text to copy…';
+  // !copy takes a thing this many characters long or less whole, and out of anything longer
+  // only the words that were found.
+  const SHORT_COPY = 80;
+  const MAX_SAID = 300; // characters of what was copied shown back, which is plenty to know it by
+  const SKIP = 5; // seconds ← and → move a video by, as most players do
+  const SMALLEST_VIDEO = 2000; // px² on screen: anything smaller is a tracker, not a video
   // A modifier held down on its own: nothing to pass out of a frame to the bar.
   const BARE_MODIFIERS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'AltGraph']);
   // Keys that move a cursor about: nothing for them to do while the hints are up.
@@ -266,6 +289,10 @@
   let commandMatches = [];
   let fastCommands = false; // !fast: a command's letter runs it, with no Enter
   let saying = false; // what a command had to say (!help) is up, until the next key
+  let copyMode = false; // !copy: Enter copies the match rather than clicking it
+  let video = null; // { el }, or in the page { frame }: the video !video last played or paused
+  let videoBid = null; // in the page, while the frames say what videos they have: the best yet
+  let videoOffer = null; // in a frame: the video it last offered the page
   let leaving = false; // the page is going; closing the bar now is not the user's doing
   let claimingFocus = false; // the bar is handing the keyboard to the page on purpose
   let opened = null; // { el, at }: a menu UOKey has opened, which the keyboard is left with
@@ -284,7 +311,8 @@
   const frameCodes = new Map(); // hint key → the frame it belongs to
   let frameQuery = null; // what the frames were last asked to look for
   let inFrameAt = null; // { id, at }: the current match is that one of that frame's
-  let frameSays = ['', '']; // and that is what the frame says Enter would do with it
+  let frameSays = ['', '', '']; // and that is what the frame says Enter would do with it, and
+  // what it would copy in !copy
   let hintTimer = 0;
   let settleTimer = 0; // waiting for the page to stop changing after a hint was used
   let settleUntil = 0; // when that wait gives up and works the hints out regardless
@@ -335,6 +363,7 @@
     if (!isOpen) return;
     switch (message.uokey) {
       case 'find':
+        copyMode = !!message.copy;
         ui.input.value = message.query;
         runSearch();
         toTop({ uokey: 'found', query: message.query, count: matches.length });
@@ -345,7 +374,7 @@
         if (m) {
           reveal(m);
           const [verb, detail] = describe(m.target);
-          toTop({ uokey: 'says', verb, detail });
+          toTop({ uokey: 'says', verb, detail, copy: copyMode ? copyTextOf(m) : '' });
         }
         render();
         break;
@@ -392,6 +421,19 @@
         leaveShort();
         render();
         break;
+      case 'videos': {
+        // The page wants to know what video this frame has, to play or pause the best one.
+        const offer = bestVideo();
+        videoOffer = offer && offer.el;
+        if (offer) toTop({ uokey: 'video', score: offer.score });
+        break;
+      }
+      case 'playpause':
+        toggleVideo(videoOffer);
+        break;
+      case 'seek':
+        if (video && video.el.isConnected) seek(video.el, message.by);
+        break;
       default:
     }
   }
@@ -402,7 +444,7 @@
       case 'here':
         // A frame that has only just loaded, into a page where the bar is already open.
         if (!isOpen) return;
-        if (frameQuery) toFrame(message.from, { uokey: 'find', query: frameQuery });
+        if (frameQuery) toFrame(message.from, { uokey: 'find', query: frameQuery, copy: copyMode });
         if (shortMode) collectHints();
         break;
       case 'shortcut':
@@ -422,7 +464,7 @@
         break;
       case 'says':
         if (!inFrameAt || inFrameAt.id !== message.from) return;
-        frameSays = [message.verb, message.detail];
+        frameSays = [message.verb, message.detail, message.copy || ''];
         showStatus();
         break;
       case 'counted':
@@ -434,6 +476,14 @@
         // A field in one of the frames has been given the keyboard, so the bar - and what the
         // other frames are drawing - is in the way.
         if (isOpen) stepAside();
+        break;
+      case 'video':
+        if (videoBid && message.score > videoBid.score) {
+          Object.assign(videoBid, { score: message.score, frame: message.from, el: null });
+        }
+        break;
+      case 'played':
+        if (isOpen && message.problem) sayOnly(message.problem);
         break;
       case 'scrollpage':
         // A frame had nothing of its own to scroll, so the page moves instead.
@@ -580,6 +630,7 @@
         return;
       }
     }
+    if (seekKey(e)) return;
     if (scrollKey(e)) return; // before the hints, so the rest of them can be scrolled into reach
     if (shortMode && handleHintKey(e)) return;
     if (e.key === 'Tab' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -597,6 +648,7 @@
         else activateCurrent(newTab);
       } else if (shortMode) stopShort(); // Esc puts the hints away before it closes the bar
       else if (list) stopList(); // and leaves the list before it closes the bar
+      else if (copyMode) stopCopy(); // and !copy
       else close(true);
     } else if (!barHasFocus()) {
       typeIntoBar(e);
@@ -712,6 +764,7 @@
     if (saying) hidePanel(); // what a command said first, as Esc does
     else if (shortMode) startShort(); // a switch: this puts the hints away and tidies the box
     else if (list) stopList();
+    else if (copyMode) stopCopy();
     else close(true);
   }
 
@@ -767,6 +820,7 @@
       current = -1;
       stopShort();
       leaveList();
+      leaveCopy();
       hidePanel();
       showStatus();
       render();
@@ -876,6 +930,7 @@
     hints = [];
     hintPending = null;
     leaveList();
+    leaveCopy();
     const previous = returnFocus;
     returnFocus = null;
     if (restoreFocus && previous && previous !== document.body && previous.isConnected) {
@@ -1023,17 +1078,32 @@
     ui.bar.classList.toggle('none', text !== '' && !total);
     ui.count.textContent = text ? `${at >= 0 ? at + 1 : 0}/${total}` : '';
     ui.action.style.display = at >= 0 ? '' : 'none';
-    if (m) {
+    if (m && copyMode) {
+      showCopy(copyTextOf(m));
+    } else if (m) {
       const [verb, detail] = describe(m.target);
       ui.verb.textContent = `↵ ${verb}`;
       ui.detail.textContent = detail;
+    } else if (inFrameAt && copyMode) {
+      showCopy(frameSays[2]);
     } else if (inFrameAt) {
       // The match is in a frame, which has said what it is; until it does, Enter clicks.
       ui.verb.textContent = `↵ ${frameSays[0] || 'click'}`;
       ui.detail.textContent = frameSays[1];
+    } else if (copyMode && !text) {
+      ui.action.style.display = '';
+      ui.verb.textContent = '↵ copy the address';
+      ui.detail.textContent = withoutScheme(location.href);
     }
-    // Nothing typed yet: the bar is only the box to type in.
-    ui.extras.classList.toggle('on', text !== '');
+    // Nothing typed yet: the bar is only the box to type in, unless Enter already does something.
+    ui.extras.classList.toggle('on', text !== '' || copyMode);
+  }
+
+  // What Enter will copy in !copy. A match can have nothing to give - a password field, an
+  // empty one - and then Enter does nothing, so the bar doesn't offer it.
+  function showCopy(text) {
+    ui.verb.textContent = text ? '↵ copy' : 'nothing to copy';
+    ui.detail.textContent = oneLine(text);
   }
 
   // What Enter will do, for the bar.
@@ -1045,7 +1115,7 @@
     const kind = target.localName === 'input' ? target.type : target.getAttribute('role');
     if (kind === 'checkbox' || kind === 'radio' || kind === 'switch') return ['toggle', ''];
     const link = el.closest('a[href]');
-    if (link) return ['open link', /^https?:/.test(link.href) ? link.href.replace(/^https?:\/\/(www\.)?/, '') : ''];
+    if (link) return ['open link', /^https?:/.test(link.href) ? withoutScheme(link.href) : ''];
     if (opensSomething(target)) {
       const showing = isShowing(target);
       if (showing === true) return ['close', ''];
@@ -1241,7 +1311,7 @@
     if (!inFrameAt) return;
     toFrame(inFrameAt.id, { uokey: 'current', at: -1 });
     inFrameAt = null;
-    frameSays = ['', ''];
+    frameSays = ['', '', ''];
   }
 
   // The frames look for the same thing, and answer in their own time. Asking again for what
@@ -1251,7 +1321,7 @@
     frameQuery = text;
     leaveFrameMatch();
     frameCounts.clear();
-    toFrames({ uokey: 'find', query: text });
+    toFrames({ uokey: 'find', query: text, copy: copyMode });
   }
 
   // < and > move the page a nudge, PageUp and PageDown a screen. They are read off e.key, so a
@@ -1331,6 +1401,10 @@
   function activateCurrent(newTab) {
     if (ui.input.value.trim().startsWith(COMMAND_PREFIX)) {
       runCommand();
+      return;
+    }
+    if (copyMode) {
+      copyCurrent();
       return;
     }
     if (inFrameAt) {
@@ -1737,7 +1811,8 @@
         ['Shift+Tab  ↑', 'previous match'],
         ['<  >', 'nudge what the match sits in, or the page; hold to keep going'],
         ['PageUp  PageDown', 'the same, a screen at a time'],
-        ['Esc', 'put this away, leave the hints or a list, then close the bar'],
+        ['←  →', `after ${COMMAND_PREFIX}video, skip it back and on, while the box is empty`],
+        ['Esc', 'put this away, leave the hints, a list or !copy, then close the bar'],
       ]),
 
       make('h2', '', 'Commands'),
@@ -1830,6 +1905,256 @@
     } catch { /* it has gone, or will not be told */ }
   }
 
+  // ---- !copy: Enter copies instead of clicking ----------------------------------------------
+  //
+  // A command can't copy the orange match: typing it replaces the search, and the match with it.
+  // So !copy changes what Enter does for one search instead. While it is on, plain text counts
+  // as a match as well as things that can be clicked, and the bar shows what Enter will copy.
+
+  function startCopy() {
+    if (copyMode) {
+      stopCopy(); // a switch, like !short
+      return;
+    }
+    leaveShort();
+    leaveList();
+    copyMode = true;
+    frameQuery = null; // the frames are asked again, and told it is for copying
+    ui.input.value = '';
+    commandMatches = [];
+    runSearch();
+    ui.input.placeholder = COPY_PLACEHOLDER;
+  }
+
+  function leaveCopy() {
+    if (!copyMode) return;
+    copyMode = false;
+    frameQuery = null;
+    if (ui) ui.input.placeholder = PLACEHOLDER;
+  }
+
+  function stopCopy() {
+    leaveCopy();
+    ui.input.value = '';
+    runSearch();
+  }
+
+  // Enter in !copy. It copies what the bar said it would, and !copy is done with.
+  function copyCurrent() {
+    if (searchTimer || (indexDirty && ui.input.value.trim())) runSearch(); // results are stale
+    const m = matches[current];
+    const text = !ui.input.value.trim() ? location.href
+      : m ? copyTextOf(m)
+        : inFrameAt ? frameSays[2] : '';
+    if (!text) return; // nothing found to copy, which the red box says already
+    writeClipboard(text).then((done) => {
+      if (!isOpen) return;
+      if (done) sayOnly('Copied', oneLine(text).slice(0, MAX_SAID));
+      else sayOnly('Firefox would not let UOKey copy that');
+    });
+    leaveCopy();
+    ui.input.value = '';
+    runSearch();
+  }
+
+  // What !copy takes from a match: what has been typed into a field; a block of code whole;
+  // anything short whole; and out of a long run of text, only the words that were found, so a
+  // tracking number in the middle of a sentence is the number and not the sentence.
+  function copyTextOf(m) {
+    const field = realTarget(m.target);
+    const typed = field.localName === 'input' ? (TYPED_TEXT_TYPES.has(field.type) ? field.value : '')
+      : field.localName === 'textarea' ? field.value
+        : field.isContentEditable ? field.innerText : '';
+    if (typed.trim()) return typed.trim(); // never a password: what the screen hides stays hidden
+    const range = m.ranges[0];
+    const code = range && flatParent(range.startContainer)?.closest('pre, code');
+    if (code) return code.textContent.trim();
+    const whole = (m.target.innerText || '').trim();
+    if (!range) {
+      return whole || m.target.getAttribute('aria-label') || m.target.title || m.target.alt || '';
+    }
+    return whole.length <= SHORT_COPY ? whole : wordsAround(range);
+  }
+
+  // The found text grown out to the spaces either side of it, so that part of a word copies the
+  // word. Punctuation the sentence put round it is left behind: "is 1Z999." copies 1Z999.
+  function wordsAround(range) {
+    const { startContainer: a, endContainer: b } = range;
+    let start = range.startOffset;
+    let end = range.endOffset;
+    if (a.nodeType === Node.TEXT_NODE) while (start > 0 && !/\s/.test(a.data[start - 1])) start--;
+    if (b.nodeType === Node.TEXT_NODE) while (end < b.data.length && !/\s/.test(b.data[end])) end++;
+    const words = document.createRange();
+    words.setStart(a, start);
+    words.setEnd(b, end);
+    return words.toString().trim()
+      .replace(/^[("'«“‘[]+/, '')
+      .replace(/[)"'»”’\].,;:!?]+$/, '');
+  }
+
+  // The clipboard can only be written to while a key press is being handled, and Enter is one.
+  // A page that isn't https has no navigator.clipboard, and gets the way that came before it.
+  function writeClipboard(text) {
+    if (navigator.clipboard) return navigator.clipboard.writeText(text).then(() => true, () => false);
+    return Promise.resolve(copyTheOldWay(text));
+  }
+
+  function copyTheOldWay(text) {
+    const area = make('textarea');
+    area.value = text;
+    area.style.cssText = 'position: fixed; opacity: 0; pointer-events: none;';
+    ui.dock.append(area);
+    area.select();
+    let done = false;
+    try {
+      done = document.execCommand('copy');
+    } catch {
+      /* not allowed here */
+    }
+    area.remove();
+    focusBar();
+    return done;
+  }
+
+  const oneLine = (text) => text.replace(/\s+/g, ' ').trim();
+  const withoutScheme = (url) => url.replace(/^https?:\/\/(www\.)?/, '');
+
+  // A line or two above the bar, for the next key to put away again.
+  function sayOnly(text, more) {
+    showPanel((panel) => {
+      panel.append(make('h1', '', text));
+      if (more) panel.append(make('p', '', more));
+    });
+    saying = true;
+  }
+
+  // ---- !video: play or pause ------------------------------------------------------------------
+
+  // Every video, in shadow roots as well: plenty of players keep theirs in one.
+  function videosIn(root, found = []) {
+    for (const el of root.querySelectorAll('*')) {
+      if (el.localName === 'video') found.push(el);
+      const shadow = shadowOf(el);
+      if (shadow) videosIn(shadow, found);
+    }
+    return found;
+  }
+
+  // The video !video means. One that is playing comes first, so that it stops: the biggest on
+  // screen, or failing that one out of sight, because the noise from further down the page
+  // wants stopping too. After that, the biggest one on screen, to start it. Scored, so that the
+  // page and each of its frames can say what they have and the best of them wins.
+  function bestVideo() {
+    let best = null;
+    for (const el of videosIn(document)) {
+      const r = el.getBoundingClientRect();
+      const seen = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0))
+        * Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+      const playing = !el.paused && !el.ended;
+      const score = playing ? (seen ? 3e9 + seen : 2e9) : (seen >= SMALLEST_VIDEO ? 1e9 + seen : 0);
+      if (score && (!best || score > best.score)) best = { el, score };
+    }
+    return best;
+  }
+
+  function playPause() {
+    ui.input.value = '';
+    runSearch();
+    const here = bestVideo();
+    if (!document.querySelector('iframe, frame')) {
+      toggleVideo(here && here.el);
+      return;
+    }
+    // A frame may have a better one - most videos on a page that isn't a video site are in a
+    // frame of their own - so they are asked, and given as long as they get for the hints.
+    videoBid = { score: here ? here.score : 0, el: here && here.el, frame: null };
+    toFrames({ uokey: 'videos' });
+    setTimeout(() => {
+      const bid = videoBid;
+      videoBid = null;
+      if (bid.frame === null) {
+        toggleVideo(bid.el);
+      } else {
+        video = { frame: bid.frame };
+        toFrame(bid.frame, { uokey: 'playpause' });
+      }
+    }, HINT_WAIT);
+  }
+
+  // In the page or in a frame: the video is started or stopped where it is. Only a problem has
+  // anything to say; a video starting or stopping says so itself.
+  function toggleVideo(el) {
+    const problem = (text) => {
+      if (inFrame) toTop({ uokey: 'played', problem: text });
+      else if (isOpen) sayOnly(text);
+    };
+    if (!el) {
+      problem('There is no video on this page');
+      return;
+    }
+    video = { el };
+    if (el.paused || el.ended) {
+      Promise.resolve(el.play()).catch(() => problem('Firefox would not let that video play'));
+    } else {
+      el.pause();
+    }
+  }
+
+  // After !video, ← and → skip the video back and on, while the box is empty: with nothing typed
+  // they have no cursor to move. The video stays the one !video chose until it is chosen again.
+  function seekKey(e) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return false;
+    if (!video || ui.input.value || inList() || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) {
+      return false;
+    }
+    const by = e.key === 'ArrowLeft' ? -SKIP : SKIP;
+    if (video.frame !== undefined) {
+      toFrame(video.frame, { uokey: 'seek', by });
+    } else if (video.el.isConnected) {
+      seek(video.el, by);
+    } else {
+      video = null; // gone from the page
+      return false;
+    }
+    e.preventDefault();
+    return true;
+  }
+
+  function seek(el, by) {
+    el.currentTime = Math.max(0, Math.min(el.duration || Infinity, el.currentTime + by));
+  }
+
+  // ---- !up and !down --------------------------------------------------------------------------
+
+  // All the way, where < and > and PageUp and PageDown go a bit at a time. Home and End would,
+  // but in the bar they belong to the box. A page that doesn't scroll itself - a web app that
+  // keeps everything in a panel of its own - has the biggest thing on screen that does scrolled.
+  function scrollToEnd(down) {
+    ui.input.value = '';
+    runSearch();
+    const by = down ? 1 : -1;
+    const box = windowScrolls(by) ? null : mainScroller(by);
+    if (box) box.scrollTop = down ? box.scrollHeight : 0;
+    else scrollTo(scrollX, down ? (document.scrollingElement || document.documentElement).scrollHeight : 0);
+  }
+
+  function mainScroller(by) {
+    let best = null;
+    let most = 0;
+    for (const el of document.querySelectorAll('*')) {
+      if (el.scrollHeight <= el.clientHeight + 1) continue; // quick to ask, so asked first
+      if (!/auto|scroll/.test(getComputedStyle(el).overflowY) || !hasRoom(el, by)) continue;
+      const r = el.getBoundingClientRect();
+      const seen = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0))
+        * Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+      if (seen > most) {
+        best = el;
+        most = seen;
+      }
+    }
+    return best;
+  }
+
   // ---- !short: a hint key on everything ---------------------------------------------------
 
   function startShort() {
@@ -1841,6 +2166,7 @@
       return;
     }
     leaveList(); // a list and the hints are never up together; Enter belongs to one of them
+    leaveCopy();
     ui.input.value = '';
     commandMatches = [];
     hidePanel();
@@ -2184,6 +2510,7 @@
       return;
     }
     leaveShort();
+    leaveCopy();
     ui.input.value = '';
     commandMatches = [];
     matches = [];
@@ -2631,6 +2958,7 @@
       } else if (!found.has(target) && !isUncovered(rect, target)) {
         continue; // hidden under something else, like a popup
       }
+      if (!target && copyMode) target = el; // !copy: any text will do, clickable or not
       if (!target || isDisabled(target)) continue;
       const m = found.get(target);
       if (m) m.ranges.push(range);

@@ -5,6 +5,30 @@ shows in `about:addons`.
 
 ---
 
+## 1.5.1 - 10 October 2026
+
+**`!copy`, or `!c`: Enter copies instead of clicking.** A command could not simply copy the
+orange match, because typing it replaces the search and the match goes with it. So `!copy`
+changes what <kbd>Enter</kbd> does for one search instead. While it is on, plain text counts as a
+match as well as things that can be clicked, and the bar shows what Enter will copy: what is
+typed in a field, a block of code whole, anything up to 80 characters whole, and out of anything
+longer only the words that were found, with the punctuation round them left behind. Enter with
+nothing typed copies the page's address. Passwords are never copied. The bar says what it took
+and goes back to clicking. No new permission is asked for: the clipboard is written while the
+key press is being handled, which is all Firefox wants.
+
+**`!video`, or `!v`: play or pause.** A video that is playing is stopped first, the biggest on
+screen or else one out of sight; otherwise the biggest one on screen is started. The page's
+frames are asked what they have, since that is where most embedded videos are, and the best of
+all of them is used. Afterwards <kbd>←</kbd> and <kbd>→</kbd> skip it back and on 5 seconds while
+the box is empty, which is when they have no cursor to move.
+
+**`!up` and `!down`, or `!u` and `!d`: all the way to the top or the bottom.** <kbd>Home</kbd>
+and <kbd>End</kbd> belong to the box while the bar is open. A page that doesn't scroll itself, as
+many web apps don't, has the biggest panel on screen that does scrolled instead.
+
+---
+
 ## 1.4.2 - 10 October 2026
 
 1.4.1 under a new number, and the one put up on addons.mozilla.org for anyone to find and
