@@ -86,6 +86,8 @@ browser.runtime.onMessage.addListener((message, sender) => {
   if (message === 'get-marks') return allBookmarks();
   if (message === 'get-tabs') return openTabs();
   if (message && message.tab !== undefined) return focusTab(message.tab, message.window);
+  if (message && message.tabAt !== undefined) return tabAt(message.tabAt, sender);
+  if (message === 'last-tab') return lastTab(sender);
   if (message && message.newTab) return newTab(message.newTab, sender);
   return undefined;
 });
@@ -200,6 +202,87 @@ async function focusTab(id, windowId) {
     await browser.tabs.update(id, { active: true });
     if (windowId !== undefined) await browser.windows.update(windowId, { focused: true });
     return true;
+  } catch {
+    return false;
+  }
+}
+
+// !1 to !9: the tab at that place in the window the bar is in, counted the way the tab strip
+// shows them. A tab an add-on has hidden is not on the strip, so it is not counted either.
+async function tabAt(place, sender) {
+  if (!sender.tab) return false;
+  try {
+    const strip = (await browser.tabs.query({ windowId: sender.tab.windowId }))
+      .filter((tab) => !tab.hidden)
+      .sort((a, b) => a.index - b.index);
+    const tab = strip[place - 1];
+    return tab ? focusTab(tab.id) : false;
+  } catch {
+    return false;
+  }
+}
+
+// The tabs used most recently, newest first and across every window, for !last to go back
+// along. Kept in session storage for the same reason as the bar's switch: this script is
+// stopped when nothing is happening, and a list held only here would be forgotten with it.
+const RECENT_TABS = 'recentTabs';
+const MAX_RECENT = 30;
+let recentWrites = Promise.resolve(); // one at a time, or two at once would lose one of them
+
+async function recentTabs() {
+  try {
+    const kept = await browser.storage.session.get(RECENT_TABS);
+    return kept[RECENT_TABS] || [];
+  } catch {
+    return []; // no session storage here: !last falls back on what Firefox knows (see lastTab)
+  }
+}
+
+function used(tabId) {
+  recentWrites = recentWrites.then(async () => {
+    const recent = [tabId, ...(await recentTabs()).filter((id) => id !== tabId)];
+    try {
+      await browser.storage.session.set({ [RECENT_TABS]: recent.slice(0, MAX_RECENT) });
+    } catch {
+      /* nowhere to keep it */
+    }
+  });
+  return recentWrites;
+}
+
+browser.tabs.onActivated.addListener(({ tabId }) => used(tabId));
+// Going to another window goes to the tab that is up in it, without any tab being switched to.
+browser.windows.onFocusChanged.addListener(async (windowId) => {
+  if (windowId === browser.windows.WINDOW_ID_NONE) return; // Firefox itself lost the focus
+  try {
+    const [tab] = await browser.tabs.query({ active: true, windowId });
+    if (tab) used(tab.id);
+  } catch {
+    /* the window went as it came */
+  }
+});
+
+// !last: back to the tab used before this one, in whichever window it is. Doing it again comes
+// straight back, because going there made this one the tab used before.
+async function lastTab(sender) {
+  const here = sender.tab && sender.tab.id;
+  await recentWrites;
+  for (const id of await recentTabs()) {
+    if (id === here) continue;
+    try {
+      const tab = await browser.tabs.get(id);
+      return focusTab(tab.id, tab.windowId);
+    } catch {
+      /* closed since: the one used before it, then */
+    }
+  }
+  // Nothing kept yet, as just after Firefox starts: the tab in this window that was left last.
+  if (!sender.tab) return false;
+  try {
+    const others = (await browser.tabs.query({ windowId: sender.tab.windowId }))
+      .filter((tab) => !tab.active && !tab.hidden)
+      .sort((a, b) => b.lastAccessed - a.lastAccessed);
+    return others.length ? focusTab(others[0].id) : false;
   } catch {
     return false;
   }

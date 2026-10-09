@@ -98,21 +98,38 @@
   const CLOSED_STATES = new Set(['closed', 'collapsed', 'hidden']);
   // The old numbers of the keys UOKey presses for the page; plenty of pages still read them.
   const KEY_NUMBERS = { Enter: 13, Escape: 27, ArrowLeft: 37, ArrowRight: 39, ArrowDown: 40 };
+  // Each command also has a letter: !s and Enter is !short. With !fast on, the letter alone is
+  // the whole command and no Enter is needed. No two commands share one.
   const COMMANDS = [
-    { name: 'help', summary: 'what UOKey does, and every key it uses', fill: fillHelp },
+    { name: 'help', letter: 'h', summary: 'what UOKey does, and every key it uses', fill: fillHelp },
     { name: 'back',
+      letter: 'b',
       summary: 'press Esc in the page, without closing the bar',
       run: pressEscape },
     { name: 'short',
+      letter: 's',
       summary: 'a hint key on everything clickable; press one to use it',
       run: startShort },
     { name: 'marks',
+      letter: 'm',
       summary: 'find one of your bookmarks by name and open it',
       run: () => startList('marks') },
     { name: 'tabs',
+      letter: 't',
       summary: 'find one of your open tabs by name and go to it',
       run: () => startList('tabs') },
+    { name: 'last',
+      letter: 'l',
+      summary: 'go back to the tab you were on before this one',
+      run: () => goToTab('last-tab', 'There is no tab to go back to') },
+    { name: 'fast',
+      letter: 'f',
+      summary: 'a command\'s letter runs it straight away, with no Enter; again to stop',
+      run: toggleFast },
   ];
+  // Where !fast is kept, so that it lasts and every tab hears when it changes. Preferences
+  // writes the same place.
+  const FAST_STORE = 'fastCommands';
   // Looking around without leaving the keyboard. < and > nudge it along and PageUp and PageDown
   // take it a screen at a time; held down, the key repeats on its own and the page keeps going.
   // < and > cost what they are worth: text with one in it stops being findable, which buys a
@@ -144,7 +161,7 @@
       display: flex; flex-direction: column; align-items: center; gap: 8px;
       max-width: calc(100vw - 32px); pointer-events: none; }
     .dock.top { top: 18px; bottom: auto; flex-direction: column-reverse; }
-    .bar, .panel, .extras { box-sizing: border-box; max-width: 100%; border-radius: 12px;
+    .bar, .panel, .extras, .fast { box-sizing: border-box; max-width: 100%; border-radius: 12px;
       background: #1f2125; color: #e8e8ea; pointer-events: auto;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08); }
     .row { position: relative; display: flex; }
@@ -154,6 +171,10 @@
       align-items: center; gap: 10px; padding: 0 13px; overflow: hidden; white-space: nowrap;
       max-width: calc(50vw - 160px); font: 13px/1.3 system-ui, sans-serif; }
     .extras.on { display: flex; }
+    /* !fast is on. The other side from the extras, so neither moves the other or the box. */
+    .fast { display: none; position: absolute; right: 100%; top: 0; bottom: 0; margin-right: 8px;
+      align-items: center; padding: 0 10px; color: #ffb13b; font: 700 13px/1 system-ui, sans-serif; }
+    .fast.on { display: flex; }
     input { all: unset; box-sizing: border-box; width: 260px; max-width: 50vw; padding: 7px 10px;
       border-radius: 8px; background: #2c2f35; color: #fff; caret-color: #ffb13b;
       font: 14px/1.2 system-ui, sans-serif; box-shadow: inset 0 0 0 1px #4a4e57; }
@@ -238,6 +259,8 @@
   let keyToggleTime = -Infinity; // no keys of ours caught yet, however new the page is
   let shortcutAt = -Infinity; // when the shortcut was last acted on, whichever way it arrived
   let commandMatches = [];
+  let fastCommands = false; // !fast: a command's letter runs it, with no Enter
+  let saying = false; // what a command had to say (!help) is up, until the next key
   let leaving = false; // the page is going; closing the bar now is not the user's doing
   let claimingFocus = false; // the bar is handing the keyboard to the page on purpose
   let opened = null; // { el, at }: a menu UOKey has opened, which the keyboard is left with
@@ -473,6 +496,21 @@
     })
     .catch(() => { /* no answer: the bar stays shut until it is asked for */ });
 
+  // Only the page has a bar to type commands into, so only the page needs to know about !fast.
+  if (!inFrame) {
+    browser.storage.local.get(FAST_STORE)
+      .then((kept) => setFast(kept[FAST_STORE] === true))
+      .catch(() => { /* storage is off: !fast starts off, and lasts while the page does */ });
+    browser.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && FAST_STORE in changes) setFast(changes[FAST_STORE].newValue === true);
+    });
+  }
+
+  function setFast(on) {
+    fastCommands = on;
+    if (ui) ui.fast.classList.toggle('on', on); // no bar yet: it is built with the F or without
+  }
+
   function setShortcut(text) {
     shortcutText = text;
     shortcut = parseShortcut(text); // null: cleared, or keys the page can't watch for
@@ -526,6 +564,16 @@
       toTop({ uokey: 'key', key: e.key, code: e.code,
         shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey });
       return;
+    }
+    // What a command said (!help) goes at the next key. Esc only puts it away, as its first step
+    // back; any other key puts it away and then does what it always does.
+    if (saying && !BARE_MODIFIERS.has(e.key)) {
+      hidePanel();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        swallowKeyUp = e.code;
+        return;
+      }
     }
     if (scrollKey(e)) return; // before the hints, so the rest of them can be scrolled into reach
     if (shortMode && handleHintKey(e)) return;
@@ -656,7 +704,8 @@
     }
     // One press backs out of whatever is running, the same way Esc does, and only switches the
     // bar off once there is nothing left to back out of.
-    if (shortMode) startShort(); // a switch: this puts the hints away and tidies the box
+    if (saying) hidePanel(); // what a command said first, as Esc does
+    else if (shortMode) startShort(); // a switch: this puts the hints away and tidies the box
     else if (list) stopList();
     else close(true);
   }
@@ -864,11 +913,14 @@
     extras.append(count, action);
     const bar = make('div', 'bar');
     bar.append(input);
+    const fast = make('div', 'fast', 'F');
+    fast.title = `${COMMAND_PREFIX}fast is on: a command's letter runs it, with no Enter`;
+    fast.classList.toggle('on', fastCommands);
     // The bar holds nothing but the box to type in, and the row holds nothing but the bar, so
     // what is centred on the screen is the typing box itself. The count and what Enter will do
-    // hang off its side without moving it.
+    // hang off its side without moving it, and the F for !fast off the other side.
     const row = make('div', 'row');
-    row.append(bar, extras);
+    row.append(fast, bar, extras);
     const panel = make('div', 'panel');
     const dock = make('div', 'dock');
     dock.append(panel, row); // on top the dock turns over, so the panel is always the far side
@@ -894,7 +946,7 @@
       scheduleRender();
     });
     return {
-      host, layer, outline, dock, bar, panel, input, count, extras, action, verb, detail,
+      host, layer, outline, dock, bar, panel, input, count, extras, action, verb, detail, fast,
       observer, boxes: [], tags: [],
     };
   }
@@ -949,7 +1001,7 @@
     if (text.startsWith(COMMAND_PREFIX)) {
       const command = commandMatches[0];
       // Enter only has something left to do while the name is still half-typed.
-      const finishes = command && command.name !== text.slice(COMMAND_PREFIX.length).trim().toLowerCase();
+      const finishes = command && !commandNamed(text.slice(COMMAND_PREFIX.length).trim().toLowerCase());
       ui.bar.classList.toggle('none', !command);
       ui.count.textContent = '';
       ui.action.style.display = finishes ? '' : 'none';
@@ -1546,15 +1598,62 @@
     matches = [];
     current = -1;
     const name = typed.slice(COMMAND_PREFIX.length).trim().toLowerCase();
-    commandMatches = COMMANDS.filter((c) => c.name.startsWith(name));
-    const exact = COMMANDS.find((c) => c.name === name);
+    // !1 to !9: a number is a whole command already, so it runs as soon as it is typed.
+    if (/^[1-9]$/.test(name)) {
+      goToTab({ tabAt: Number(name) }, `There is no tab ${name} in this window`);
+      return;
+    }
+    // A command's letter comes first, so Enter on !s is !short whatever else starts with s.
+    commandMatches = [
+      ...COMMANDS.filter((c) => c.letter === name),
+      ...COMMANDS.filter((c) => c.letter !== name && c.name.startsWith(name)),
+    ];
+    const exact = commandNamed(name);
     if (exact && exact.run) {
       exact.run(); // a command that does something rather than saying something
       return;
     }
-    showPanel(exact ? exact.fill : (panel) => fillCommandList(panel, name));
+    if (exact) {
+      // Done with, like every command once it has run: the box is empty and ready for the next
+      // thing. What the command says stays up until a key is pressed.
+      ui.input.value = '';
+      commandMatches = [];
+      showPanel(exact.fill);
+      saying = true;
+    } else {
+      showPanel((panel) => fillCommandList(panel, name));
+    }
     showStatus();
     render();
+  }
+
+  // The command the bar holds in full: its name, or with !fast on its letter alone.
+  function commandNamed(name) {
+    return COMMANDS.find((c) => c.name === name || (fastCommands && c.letter === name));
+  }
+
+  // !1 to !9 and !last. Switching tabs is the background script's to do, and the bar comes up
+  // in the tab it lands on, being a switch for the whole browser. Only a tab that isn't there
+  // leaves anything to say here.
+  function goToTab(ask, none) {
+    ui.input.value = '';
+    runSearch();
+    browser.runtime.sendMessage(ask)
+      .then((went) => {
+        if (went !== false || !isOpen) return;
+        showPanel((panel) => panel.append(make('h1', '', none)));
+        saying = true;
+      })
+      .catch(() => { /* the background script didn't answer: there is nothing to say */ });
+  }
+
+  // !fast is a switch, and the F beside the bar says which way it is.
+  function toggleFast() {
+    setFast(!fastCommands);
+    browser.storage.local.set({ [FAST_STORE]: fastCommands })
+      .catch(() => { /* storage is off: the switch lasts while this page does */ });
+    ui.input.value = '';
+    runSearch(); // the box is ready for the next thing
   }
 
   // Enter on a command: finish typing its name, which shows what it has to say.
@@ -1566,6 +1665,7 @@
   }
 
   function showPanel(fill) {
+    saying = false;
     ui.panel.textContent = '';
     fill(ui.panel);
     ui.panel.style.display = 'block';
@@ -1573,6 +1673,7 @@
   }
 
   function hidePanel() {
+    saying = false;
     if (!ui.panel.style.display) return;
     ui.panel.style.display = '';
     ui.panel.textContent = '';
@@ -1582,7 +1683,22 @@
     panel.append(make('h1', '', commandMatches.length
       ? 'Commands'
       : `There is no ${COMMAND_PREFIX}${name} command`));
-    panel.append(rows(COMMANDS.map((c) => [COMMAND_PREFIX + c.name, c.summary])));
+    panel.append(make('p', '', fastSays()));
+    panel.append(commandRows());
+  }
+
+  // Each command by its name and then its letter, the way the keys are listed: Tab, then ↓.
+  function commandRows() {
+    return rows([
+      ...COMMANDS.map((c) => [`${COMMAND_PREFIX}${c.name}  ${COMMAND_PREFIX}${c.letter}`, c.summary]),
+      [`${COMMAND_PREFIX}1 … ${COMMAND_PREFIX}9`, 'go to that tab in this window, counting from the left'],
+    ]);
+  }
+
+  function fastSays() {
+    return fastCommands
+      ? `${COMMAND_PREFIX}fast is on: a letter runs its command as soon as it is typed.`
+      : `Type the name, or the letter and Enter. ${COMMAND_PREFIX}fast makes the letter enough.`;
   }
 
   function fillHelp(panel) {
@@ -1593,7 +1709,7 @@
 
       make('h2', '', 'The bar'),
       rows([
-        [shortcutText || 'No shortcut set', 'leave the hints or a list, then switch the bar off; '
+        [shortcutText || 'No shortcut set', 'put this away, leave the hints or a list, then switch the bar off; '
           + 'and take the keyboard back from a field'],
         ['Enter', 'click the orange match, or type in it when it is a field'],
         ['Enter in a field', 'done typing: the bar comes back and takes the keyboard with it'],
@@ -1602,11 +1718,12 @@
         ['Shift+Tab  ↑', 'previous match'],
         ['<  >', 'nudge what the match sits in, or the page; hold to keep going'],
         ['PageUp  PageDown', 'the same, a screen at a time'],
-        ['Esc', 'leave the hints or a list, then close the bar'],
+        ['Esc', 'put this away, leave the hints or a list, then close the bar'],
       ]),
 
       make('h2', '', 'Commands'),
-      rows(COMMANDS.map((command) => [COMMAND_PREFIX + command.name, command.summary])),
+      make('p', '', fastSays()),
+      commandRows(),
 
       make('h2', '', 'While the hints are up'),
       rows([

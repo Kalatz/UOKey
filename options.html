@@ -18,8 +18,12 @@
   button { font: inherit; padding: 7px 14px; border-radius: 8px; cursor: pointer;
     background: var(--key); color: #1f2125; border: 0; font-weight: 600; }
   button:hover { background: var(--accent); }
-  kbd { background: var(--key); color: #1f2125; border-radius: 4px; padding: 1px 5px;
+  kbd, code { background: var(--key); color: #1f2125; border-radius: 4px; padding: 1px 5px;
     font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: var(--line); color: var(--text); }
+  h1.next { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+  label { display: flex; gap: 8px; align-items: baseline; margin: 0 0 6px; cursor: pointer; }
+  input[type="checkbox"] { accent-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -29,6 +33,11 @@
     you have allowed.</p>
   <p id="state">Checking…</p>
   <button id="grant" hidden>Allow UOKey on all sites</button>
+
+  <h1 class="next">Commands</h1>
+  <label><input type="checkbox" id="fast"> Run a command by its letter alone, with no Enter</label>
+  <p><code>!s</code> is <code>!short</code> as soon as it is typed, <code>!h</code> is
+    <code>!help</code>, and so on. The same switch as typing <code>!fast</code> in the bar.</p>
 </body>
 <script src="options.js"></script>
 </html>

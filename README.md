@@ -9,7 +9,7 @@ or field says, and press Enter to click it.
 
 [![Firefox 128+](https://img.shields.io/badge/Firefox-128%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
 [![Manifest V3](https://img.shields.io/badge/manifest-v3-000033)](manifest.json)
-[![Version 1.3.1](https://img.shields.io/badge/version-1.3.1-000033)](CHANGELOG.md)
+[![Version 1.4.0](https://img.shields.io/badge/version-1.4.0-000033)](CHANGELOG.md)
 [![Data collected: none](https://img.shields.io/badge/data%20collected-none-2ea043)](#permissions)
 
 </div>
@@ -60,15 +60,18 @@ the hand cursor counts as clickable, which is how most of the web builds a butto
 ## Commands
 
 Anything typed starting with `!` is a command for UOKey rather than text to look for. Type `!` on
-its own to see the list.
+its own to see the list. Every command also has a letter: `!s` and <kbd>Enter</kbd> is `!short`.
 
-| Command | What it does |
-| --- | --- |
-| `!help` | what UOKey does, and every key it uses |
-| `!back` | press Esc in the page, without closing the bar |
-| `!short` | put a hint key on everything clickable |
-| `!marks` | find one of your bookmarks and open it |
-| `!tabs` | find one of your open tabs and go to it |
+| Command | Letter | What it does |
+| --- | --- | --- |
+| `!help` | `!h` | what UOKey does, and every key it uses |
+| `!back` | `!b` | press Esc in the page, without closing the bar |
+| `!short` | `!s` | put a hint key on everything clickable |
+| `!marks` | `!m` | find one of your bookmarks and open it |
+| `!tabs` | `!t` | find one of your open tabs and go to it |
+| `!last` | `!l` | go back to the tab you were on before this one |
+| `!1` … `!9` | | go to that tab in this window |
+| `!fast` | `!f` | run a command by its letter alone, with no Enter |
 
 **`!back`** presses <kbd>Esc</kbd> in the page itself, which shuts the menu, submenu or dialog
 the page has open, and leaves the bar where it was. <kbd>Esc</kbd> on its own is the bar's: it
@@ -88,6 +91,22 @@ the page.
 **`!tabs`** searches your open tabs by title and address. <kbd>Enter</kbd> goes to one, bringing
 its window forward if it is in another. Tabs in this window come first.
 
+**`!1` to `!9`** go to the tab at that place in this window, counting from the left the way the
+tab strip shows them. A number is a whole command already, so it runs as soon as it is typed,
+with `!fast` on or off. There is no `!10`: `!tabs` finds the rest by name.
+
+**`!last`** goes back to the tab you were on before this one, in whichever window it is. Doing it
+again comes straight back, so it flips between two tabs. UOKey keeps the order you used your tabs
+in until Firefox closes; just after it starts, before you have switched anywhere, `!last` goes to
+the tab in this window you left most recently.
+
+**`!fast`** makes the letter the whole command: `!s` puts the hints up the moment it is typed, with
+no <kbd>Enter</kbd>. While it is on, the full names stop working, because the first letter has run
+the command before the rest arrives - typing `!short` in full puts the hints up at `!s` and then
+presses the hints `h`, `o`, `r` and `t`. `!fast` again, or `!f`, turns it off. It stays the way
+you left it when Firefox closes, and `about:addons` → UOKey → **Preferences** has the same switch.
+While it is on, a bold **F** sits beside the bar.
+
 ---
 
 ## Good to know
@@ -95,7 +114,10 @@ its window forward if it is in another. Tabs in this window come first.
 - **The bar is a switch for the whole browser.** Turn it on and it is waiting in every tab and on
   every page you open, through links and reloads, until you turn it off. Only Ctrl+Space, Esc or a
   real mouse click on the page puts it away; closing Firefox forgets it.
-- **Ctrl+Space and Esc back out one step at a time**: the hints or a list first, then the bar.
+- **Ctrl+Space and Esc back out one step at a time**: `!help` first, then the hints or a list, then
+  the bar.
+- **A command leaves the box empty**, ready for the next thing. What `!help` shows stays up until
+  the next key, which puts it away and then does what it always does.
 - **Enter leaves the bar open** and empties the box, ready for the next thing. The one exception
   is a text field: the cursor has to go into the field for you to type, so the bar steps aside
   until that typing is done. It comes back when you press <kbd>Enter</kbd> in the field, or as
@@ -142,7 +164,7 @@ UOKey only reads these, and nothing is sent anywhere.
 | **Access your data for all websites** | Reading the page in front of you: the text of its links, buttons and fields |
 | **bookmarks** | `!marks` |
 | **tabs** | `!tabs` |
-| **storage** | Keeping the site icons Firefox has already handed over, so none is ever fetched |
+| **storage** | Keeping the site icons Firefox has already handed over, so none is ever fetched; whether `!fast` is on; and, until Firefox closes, the order you used your tabs in, for `!last` |
 
 > [!IMPORTANT]
 > Without **access your data for all websites** the bar will not open anywhere. If it was turned

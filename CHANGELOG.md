@@ -5,6 +5,36 @@ shows in `about:addons`.
 
 ---
 
+## 1.4.0 - 9 October 2026
+
+**Every command has a letter.** `!h`, `!b`, `!s`, `!m` and `!t`, shown beside the names in the `!`
+list, in `!help` and in the README. `!s` and <kbd>Enter</kbd> is `!short`. Enter already finished
+any name typed far enough to be the only one it could be, so the letters worked before; they are
+written down now, and a command's own letter comes before any other name that starts with it.
+
+**`!fast`, or `!f`: the letter alone is enough.** With it on, a command runs the moment its letter
+is typed, with no <kbd>Enter</kbd>. The full names stop working while it is on, because the first
+letter has already run the command by the time the rest arrives: `!short` typed in full puts the
+hints up at `!s` and then presses `h`, `o`, `r` and `t` as hints. It is kept in local storage, so
+it lasts when Firefox closes and every tab hears of it at once, and Preferences has a box for the
+same switch. A bold **F** beside the bar says it is on.
+
+**A command leaves the box empty.** `!help` used to stay in the box once it had run, so the
+next key added to it and <kbd>Enter</kbd> only ran it again: getting back to searching meant
+deleting it by hand. Now every command empties the box, ready for the next thing. What `!help`
+shows stays up until the next key, which puts it away and then does what it always does;
+<kbd>Esc</kbd> and <kbd>Ctrl</kbd>+<kbd>Space</kbd> put it away as their first step back.
+
+**`!1` to `!9` go to a tab, and `!last` goes back to the one before.** A number goes to the tab
+at that place in this window, counted from the left as the tab strip shows them, and runs as
+soon as it is typed, since there is nothing more to type. `!last`, or `!l`, goes back to the tab
+you were on before this one, in whichever window; again comes straight back. Firefox says which
+tab is switched to, and the order is kept in session storage, because the background script is
+stopped when idle and would forget it; it goes when Firefox closes. Until there is an order to
+go by, `!last` takes the tab in this window that was left most recently.
+
+---
+
 ## 1.3.1 - 24 September 2026
 
 A spelling correction. The long dashes in the comments, the README, this history and the

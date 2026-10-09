@@ -2,13 +2,17 @@
  * UOKey cannot run on a page until Firefox has been told it may. When it hasn't been, the
  * content script never starts, so there is nothing on the page able to say why nothing happens.
  * This page is that surface: it says which way it stands and asks for the permission.
+ *
+ * It also has the !fast switch, for anyone who looks for settings here rather than in the bar.
  */
 (() => {
   'use strict';
 
   const EVERYWHERE = { origins: ['<all_urls>'] };
+  const FAST_STORE = 'fastCommands'; // the same place content.js keeps !fast
   const state = document.getElementById('state');
   const grant = document.getElementById('grant');
+  const fast = document.getElementById('fast');
 
   async function show() {
     let allowed = false;
@@ -39,4 +43,15 @@
   browser.permissions.onAdded?.addListener(show);
   browser.permissions.onRemoved?.addListener(show);
   show();
+
+  browser.storage.local.get(FAST_STORE)
+    .then((kept) => { fast.checked = kept[FAST_STORE] === true; })
+    .catch(() => { fast.disabled = true; }); // storage is off: there is nowhere to keep it
+  fast.addEventListener('change', () => {
+    browser.storage.local.set({ [FAST_STORE]: fast.checked }).catch(() => { /* see above */ });
+  });
+  // Typing !fast in the bar while this page is open turns the box with it.
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && FAST_STORE in changes) fast.checked = changes[FAST_STORE].newValue === true;
+  });
 })();
