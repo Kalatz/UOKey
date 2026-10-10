@@ -5,9 +5,17 @@ shows in `about:addons`.
 
 ---
 
+## 1.4.2 - 10 October 2026
+
+1.4.1 under a new number. 1.4.1 went up to be signed for self-distribution rather than listed,
+and addons.mozilla.org never takes the same number twice, so this is the one put up there for
+anyone to find and install. Nothing in the add-on changed.
+
+---
+
 ## 1.4.1 - 10 October 2026
 
-The version put up on addons.mozilla.org, for anyone to find and install.
+Signed, but never listed: 1.4.2 is the same add-on, put up on addons.mozilla.org.
 
 **`!github` opens UOKey's page on GitHub**, in a new tab beside the one you are on, where a
 star helps other people find it. It has no letter, and comes last in the list of commands. The
