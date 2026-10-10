@@ -190,8 +190,8 @@ reads, and nothing it reads is sent anywhere.
 
 ---
 
-> [!NOTE]
-> **Disclaimer:** UOKey was created with help from [Claude Code](https://claude.com/claude-code),
+> [!WARNING]
+> UOKey was created with help from [Claude Code](https://claude.com/claude-code),
 > an AI coding assistant made by Anthropic.
 
 <div align="center">
