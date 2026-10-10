@@ -1,16 +1,20 @@
 <div align="center">
 
-<img src="icons/icon.svg" alt="" width="170">
+<img src="icons/icon.svg" alt="" width="150">
 
 # UOKey
 
-**Use Only Keyboard.** A Firefox extension: press Ctrl+Space, type part of what a link, button
+**Use Only Keyboard.** A Firefox add-on: press Ctrl+Space, type part of what a link, button
 or field says, and press Enter to click it.
 
+<a href="https://addons.mozilla.org/firefox/addon/uokey/"><img src="images/get-the-addon.svg" alt="Get the add-on for Firefox" height="58"></a>
+
 [![Firefox 128+](https://img.shields.io/badge/Firefox-128%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
-[![Manifest V3](https://img.shields.io/badge/manifest-v3-000033)](manifest.json)
 [![Version 1.4.1](https://img.shields.io/badge/version-1.4.1-000033)](CHANGELOG.md)
 [![Data collected: none](https://img.shields.io/badge/data%20collected-none-2ea043)](#permissions)
+[![GitHub stars](https://img.shields.io/github/stars/Kalatz/UOKey?style=flat&logo=github&label=stars)](https://github.com/Kalatz/UOKey/stargazers)
+
+<img src="images/search.png" alt="The UOKey bar at the bottom of a Wikipedia page: keyb typed in the box, every match highlighted, the first in orange, and beside the box 1/85 and open link" width="860">
 
 </div>
 
@@ -22,12 +26,6 @@ Press <kbd>Ctrl</kbd>+<kbd>Space</kbd>. A small bar opens at the bottom of the p
 the text of a link, button or field - `searc` for Amazon's "Search Amazon" box. Every match is
 highlighted, and <kbd>Enter</kbd> clicks the orange one; if it is a text field, Enter puts the
 cursor in it instead, so you can type.
-
-```text
-╭─────────────────────────────────────────────╮
-│ searc                                       │   1/3   ↵ type here
-╰─────────────────────────────────────────────╯
-```
 
 Beside the box: which match you are on out of how many, and what Enter will do to it. Nothing
 else shows until you ask. The bar moves to the top of the page when it would cover the match.
@@ -46,9 +44,9 @@ else shows until you ask. The bar moves to the top of the page when it would cov
 It searches visible text, and also placeholders, labels, tooltips and image descriptions (alt
 text), and whatever you have already typed into a field - so a search box you have half filled in
 is found by your own words, not by the placeholder it has stopped showing. Passwords are left out:
-what the screen stars out, UOKey does not read. Capitals and accents make no difference, so `οδος` finds `Οδός`. Anything the page gives
-the hand cursor counts as clickable, which is how most of the web builds a button out of a plain
-`div`.
+what the screen stars out, UOKey does not read. Capitals and accents make no difference, so `οδος`
+finds `Οδός`. Anything the page gives the hand cursor counts as clickable, which is how most of the
+web builds a button out of a plain `div`.
 
 > [!TIP]
 > To use a different shortcut: `about:addons` → ⚙ → **Manage Extension Shortcuts**. Whatever you
@@ -75,6 +73,10 @@ is `!short`.
 | `!fast` | `!f` | run a command by its letter alone, with no Enter |
 | `!github` | | open UOKey's page on GitHub |
 
+<p align="center">
+<img src="images/commands.png" alt="The list of commands UOKey shows when ! is typed on its own, from !help to !github" width="760">
+</p>
+
 **`!back`** presses <kbd>Esc</kbd> in the page itself, which shuts the menu, submenu or dialog
 the page has open, and leaves the bar where it was. <kbd>Esc</kbd> on its own is the bar's: it
 backs out of the hints or a list, and then closes the bar.
@@ -84,6 +86,10 @@ its own to click the thing it belongs to. The hints stay up afterwards, worked o
 time, so you can press one button after another - including on whatever the last press opened,
 which is waited for rather than missed. <kbd>Space</kbd> works them out again by hand, for a page
 that has put something up on its own. `!short` again, or <kbd>Esc</kbd>, puts them away.
+
+<p align="center">
+<img src="images/hints.png" alt="A Wikipedia page with !short on: a small yellow two-letter key under every link, button and field" width="760">
+</p>
 
 **`!marks`** searches your bookmarks by name, address or folder. They are listed in the folders
 you keep them in, with the bookmarks toolbar first and open and the rest shut until you press
@@ -144,43 +150,33 @@ you, a star there helps other people find it.
 
 ## Install
 
-**From addons.mozilla.org:** install it from
-[its page there](https://addons.mozilla.org/firefox/addon/uokey/), and Firefox keeps it up to date.
+**From addons.mozilla.org:** open [UOKey's page there](https://addons.mozilla.org/firefox/addon/uokey/)
+in Firefox 128 or newer and press **Add to Firefox**. Firefox lists what UOKey may do before it
+adds it (see [Permissions](#permissions)) and keeps it up to date from then on.
 
-**From this folder, signed for yourself** (never listed or shown to anyone else):
-
-1. Change `id` under `browser_specific_settings` in [`manifest.json`](manifest.json) to one of your
-   own: `uokey@kalatz` belongs to the published add-on, and addons.mozilla.org will not sign it
-   for anyone else.
-2. Run `./build.sh`, which puts `uokey-<version>.zip` in this folder.
-3. Sign in at [addons.mozilla.org](https://addons.mozilla.org/developers/addon/submit/distribution)
-   and choose **On your own**.
-4. Upload the zip; signing takes a minute or two.
-5. Download the signed `.xpi` and open it in Firefox.
-
-For a new version, raise `version` in [`manifest.json`](manifest.json) first - Firefox will not
-install a version it already has - and note what changed in [`CHANGELOG.md`](CHANGELOG.md).
-
-**To try it** (gone again when Firefox closes): open `about:debugging#/runtime/this-firefox`,
-click **Load Temporary Add-on…**, pick `manifest.json`, and reload the tabs you want it in.
+**From the source**, to try a change (gone again when Firefox closes): open
+`about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on…**, pick `manifest.json`,
+and reload the tabs you want it in. `./build.sh` packs the same files into the zip that
+addons.mozilla.org signs.
 
 ---
 
 ## Permissions
 
-UOKey only reads these, and nothing is sent anywhere.
+These are the lines Firefox shows when you add UOKey, and what each one is needed for. UOKey only
+reads, and nothing it reads is sent anywhere.
 
-| What Firefox asks for | What it is for |
+| Firefox asks to | What UOKey needs it for |
 | --- | --- |
-| **Access your data for all websites** | Reading the page in front of you: the text of its links, buttons and fields |
-| **bookmarks** | `!marks` |
-| **tabs** | `!tabs` |
-| **storage** | Keeping the site icons Firefox has already handed over, so none is ever fetched; whether `!fast` is on; and, until Firefox closes, the order you used your tabs in, for `!last` |
+| **Access your data for all websites** | Reading the page in front of you: the text of its links, buttons and fields, so the bar can find them. Without it the bar opens nowhere. |
+| **Read and modify bookmarks** | `!marks`, which searches your bookmarks. UOKey only reads them and never changes one. |
+| **Access browser tabs** | `!tabs`, which searches your open tabs by title and address, and the site icons `!marks` and `!tabs` show. |
+| *Storage, which Firefox does not ask about* | The site icons Firefox has already shown, kept so that none is ever fetched; whether `!fast` is on; and, until Firefox closes, whether the bar is on and the order you used your tabs in, for `!last`. |
 
 > [!IMPORTANT]
-> Without **access your data for all websites** the bar will not open anywhere. If it was turned
-> down, or turned off later, `about:addons` → UOKey → **Preferences** says so and has a button to
-> ask again.
+> **Access your data for all websites** can be turned off later, in `about:addons` → UOKey →
+> **Permissions**. If it is, the bar will not open anywhere, and `about:addons` → UOKey →
+> **Preferences** says so and has a button to turn it back on.
 
 ---
 
@@ -191,3 +187,13 @@ UOKey only reads these, and nothing is sent anywhere.
 - A frame UOKey is not allowed into - a sandboxed one, or one on a page of that kind - is a blank
   to it.
 - Text that is part of a picture is only found if the picture has alt text.
+
+---
+
+<div align="center">
+<sub>
+The screenshots show Wikipedia's <a href="https://en.wikipedia.org/wiki/Computer_keyboard">Computer keyboard</a> article, <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
+<br><br>
+<b>Disclaimer:</b> UOKey was created with help from <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding assistant made by Anthropic.
+</sub>
+</div>
