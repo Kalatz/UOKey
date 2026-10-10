@@ -190,10 +190,12 @@ reads, and nothing it reads is sent anywhere.
 
 ---
 
+> [!NOTE]
+> **Disclaimer:** UOKey was created with help from [Claude Code](https://claude.com/claude-code),
+> an AI coding assistant made by Anthropic.
+
 <div align="center">
 <sub>
 The screenshots show Wikipedia's <a href="https://en.wikipedia.org/wiki/Computer_keyboard">Computer keyboard</a> article, <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
-<br><br>
-<b>Disclaimer:</b> UOKey was created with help from <a href="https://claude.com/claude-code">Claude Code</a>, an AI coding assistant made by Anthropic.
 </sub>
 </div>
