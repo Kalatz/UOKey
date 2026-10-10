@@ -5,6 +5,17 @@ shows in `about:addons`.
 
 ---
 
+## 1.4.1 - 10 October 2026
+
+The version put up on addons.mozilla.org, for anyone to find and install.
+
+**A word about the repository.** The end of `!help` says that a star on
+github.com/Kalatz/UOKey helps other people find UOKey, and Preferences has a **Star UOKey on
+GitHub** button that opens it. Nothing opens on install or update, and the bar says nothing about
+it anywhere else. Everything else is 1.4.0 as it was.
+
+---
+
 ## 1.4.0 - 9 October 2026
 
 **Every command has a letter.** `!h`, `!b`, `!s`, `!m` and `!t`, shown beside the names in the `!`

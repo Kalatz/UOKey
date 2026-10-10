@@ -15,9 +15,10 @@
   p { margin: 0 0 12px; color: var(--dim); }
   #state { color: var(--text); }
   #state.off { color: var(--accent); }
-  button { font: inherit; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+  button, a.button { font: inherit; padding: 7px 14px; border-radius: 8px; cursor: pointer;
     background: var(--key); color: #1f2125; border: 0; font-weight: 600; }
-  button:hover { background: var(--accent); }
+  button:hover, a.button:hover { background: var(--accent); }
+  a.button { display: inline-block; text-decoration: none; }
   kbd, code { background: var(--key); color: #1f2125; border-radius: 4px; padding: 1px 5px;
     font: 600 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
   code { background: var(--line); color: var(--text); }
@@ -38,6 +39,10 @@
   <label><input type="checkbox" id="fast"> Run a command by its letter alone, with no Enter</label>
   <p><code>!s</code> is <code>!short</code> as soon as it is typed, <code>!h</code> is
     <code>!help</code>, and so on. The same switch as typing <code>!fast</code> in the bar.</p>
+
+  <h1 class="next">Like UOKey?</h1>
+  <p>A star on GitHub helps other people find it.</p>
+  <a class="button" href="https://github.com/Kalatz/UOKey" target="_blank" rel="noopener">Star UOKey on GitHub</a>
 </body>
 <script src="options.js"></script>
 </html>

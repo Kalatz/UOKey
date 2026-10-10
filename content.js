@@ -1738,6 +1738,7 @@
         + 'pages, so the bar will not open on a new tab, the home page, any about: page or '
         + 'addons.mozilla.org. Other keys for the bar: about:addons → ⚙ → Manage Extension '
         + 'Shortcuts.'),
+      make('p', 'note', 'Like UOKey? A star on github.com/Kalatz/UOKey helps other people find it.'),
     );
   }
 

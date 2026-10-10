@@ -9,7 +9,7 @@ or field says, and press Enter to click it.
 
 [![Firefox 128+](https://img.shields.io/badge/Firefox-128%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
 [![Manifest V3](https://img.shields.io/badge/manifest-v3-000033)](manifest.json)
-[![Version 1.4.0](https://img.shields.io/badge/version-1.4.0-000033)](CHANGELOG.md)
+[![Version 1.4.1](https://img.shields.io/badge/version-1.4.1-000033)](CHANGELOG.md)
 [![Data collected: none](https://img.shields.io/badge/data%20collected-none-2ea043)](#permissions)
 
 </div>
@@ -139,13 +139,19 @@ While it is on, a bold **F** sits beside the bar.
 
 ## Install
 
-**To keep it** (signed, and not published - the add-on is never listed or shown to anyone else):
+**From addons.mozilla.org:** install it from
+[its page there](https://addons.mozilla.org/firefox/addon/uokey/), and Firefox keeps it up to date.
 
-1. Run `./build.sh`, which puts `uokey-<version>.zip` in this folder.
-2. Sign in at [addons.mozilla.org](https://addons.mozilla.org/developers/addon/submit/distribution)
+**From this folder, signed for yourself** (never listed or shown to anyone else):
+
+1. Change `id` under `browser_specific_settings` in [`manifest.json`](manifest.json) to one of your
+   own: `uokey@kalatz` belongs to the published add-on, and addons.mozilla.org will not sign it
+   for anyone else.
+2. Run `./build.sh`, which puts `uokey-<version>.zip` in this folder.
+3. Sign in at [addons.mozilla.org](https://addons.mozilla.org/developers/addon/submit/distribution)
    and choose **On your own**.
-3. Upload the zip; signing takes a minute or two.
-4. Download the signed `.xpi` and open it in Firefox.
+4. Upload the zip; signing takes a minute or two.
+5. Download the signed `.xpi` and open it in Firefox.
 
 For a new version, raise `version` in [`manifest.json`](manifest.json) first - Firefox will not
 install a version it already has - and note what changed in [`CHANGELOG.md`](CHANGELOG.md).
