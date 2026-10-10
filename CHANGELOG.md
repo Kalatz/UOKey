@@ -7,9 +7,18 @@ shows in `about:addons`.
 
 ## 1.4.2 - 10 October 2026
 
-1.4.1 under a new number. 1.4.1 went up to be signed for self-distribution rather than listed,
-and addons.mozilla.org never takes the same number twice, so this is the one put up there for
-anyone to find and install. Nothing in the add-on changed.
+1.4.1 under a new number, and the one put up on addons.mozilla.org for anyone to find and
+install. 1.4.1 went up to be signed for self-distribution rather than listed, and
+addons.mozilla.org never takes the same number twice.
+
+**The icon reads as a picture to addons.mozilla.org.** Its checker only looks at the start of an
+SVG file, and the icon began with a hidden copy of the drawing it was exported from, so the
+checker called it corrupt. That copy is gone, and the drawing sits in a square, as an icon
+should; Firefox showed it the same way before and still does.
+
+**Firefox 142 or newer.** The line saying UOKey collects no data is only read from Firefox 140 on,
+and from 142 on Android, so older versions were told nothing. Firefox 140 ESR, the last release
+before 142 still being looked after, stopped getting updates on 29 September 2026.
 
 ---
 

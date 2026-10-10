@@ -9,7 +9,7 @@ or field says, and press Enter to click it.
 
 <a href="https://addons.mozilla.org/firefox/addon/uokey/"><img src="images/get-the-addon.svg" alt="Get the add-on for Firefox" height="58"></a>
 
-[![Firefox 128+](https://img.shields.io/badge/Firefox-128%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
+[![Firefox 142+](https://img.shields.io/badge/Firefox-142%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
 [![Version 1.4.2](https://img.shields.io/badge/version-1.4.2-000033)](CHANGELOG.md)
 [![Data collected: none](https://img.shields.io/badge/data%20collected-none-2ea043)](#permissions)
 [![GitHub stars](https://img.shields.io/github/stars/Kalatz/UOKey?style=flat&logo=github&label=stars)](https://github.com/Kalatz/UOKey/stargazers)
@@ -151,7 +151,7 @@ you, a star there helps other people find it.
 ## Install
 
 **From addons.mozilla.org:** open [UOKey's page there](https://addons.mozilla.org/firefox/addon/uokey/)
-in Firefox 128 or newer and press **Add to Firefox**. Firefox lists what UOKey may do before it
+in Firefox 142 or newer and press **Add to Firefox**. Firefox lists what UOKey may do before it
 adds it (see [Permissions](#permissions)) and keeps it up to date from then on.
 
 **From the source**, to try a change (gone again when Firefox closes): open
