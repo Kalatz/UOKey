@@ -72,6 +72,7 @@ its own to see the list. Every command also has a letter: `!s` and <kbd>Enter</k
 | `!last` | `!l` | go back to the tab you were on before this one |
 | `!1` … `!9` | | go to that tab in this window |
 | `!fast` | `!f` | run a command by its letter alone, with no Enter |
+| `!github` | `!g` | open UOKey's page on GitHub |
 
 **`!back`** presses <kbd>Esc</kbd> in the page itself, which shuts the menu, submenu or dialog
 the page has open, and leaves the bar where it was. <kbd>Esc</kbd> on its own is the bar's: it
@@ -106,6 +107,9 @@ the command before the rest arrives - typing `!short` in full puts the hints up 
 presses the hints `h`, `o`, `r` and `t`. `!fast` again, or `!f`, turns it off. It stays the way
 you left it when Firefox closes, and `about:addons` → UOKey → **Preferences** has the same switch.
 While it is on, a bold **F** sits beside the bar.
+
+**`!github`** opens this repository in a new tab beside the one you are on. If UOKey is useful to
+you, a star there helps other people find it.
 
 ---
 

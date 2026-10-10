@@ -88,7 +88,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
   if (message && message.tab !== undefined) return focusTab(message.tab, message.window);
   if (message && message.tabAt !== undefined) return tabAt(message.tabAt, sender);
   if (message === 'last-tab') return lastTab(sender);
-  if (message && message.newTab) return newTab(message.newTab, sender);
+  if (message && message.newTab) return newTab(message.newTab, sender, message.front);
   return undefined;
 });
 
@@ -289,12 +289,12 @@ async function lastTab(sender) {
 }
 
 // A page cannot open a tab behind itself. Next to the one that asked, not at the far end, and
-// left in the background so that Shift+Enter keeps you where you are.
-async function newTab(url, sender) {
+// left in the background so that Shift+Enter keeps you where you are; !github asks for the front.
+async function newTab(url, sender, front) {
   try {
     await browser.tabs.create({
       url,
-      active: false,
+      active: !!front,
       ...(sender.tab ? { index: sender.tab.index + 1, openerTabId: sender.tab.id } : {}),
     });
     return true;

@@ -126,7 +126,12 @@
       letter: 'f',
       summary: 'a command\'s letter runs it straight away, with no Enter; again to stop',
       run: toggleFast },
+    { name: 'github',
+      letter: 'g',
+      summary: 'open UOKey\'s page on GitHub, where a star helps other people find it',
+      run: openGitHub },
   ];
+  const GITHUB_PAGE = 'https://github.com/Kalatz/UOKey';
   // Where !fast is kept, so that it lasts and every tab hears when it changes. Preferences
   // writes the same place.
   const FAST_STORE = 'fastCommands';
@@ -195,6 +200,7 @@
     .panel dt { color: #ffb13b; font-weight: 600; white-space: nowrap; }
     .panel dd { margin: 0; color: #c9cdd4; }
     .panel .note { margin: 12px 0 0; color: #7d828b; font-size: 12px; }
+    .panel .star { margin: 12px 0 0; color: #ff8a00; font-weight: 600; }
     /* The page shows through a hint, so a hint never quite hides what it sits on. The colour
        is what gives way; the letter stays as dark as it was, because it is the one thing on a
        hint that has to be read. */
@@ -1647,6 +1653,14 @@
       .catch(() => { /* the background script didn't answer: there is nothing to say */ });
   }
 
+  // !github brings the page up in a tab of its own, beside this one, and the bar comes along.
+  function openGitHub() {
+    ui.input.value = '';
+    runSearch(); // the box is ready for the next thing
+    browser.runtime.sendMessage({ newTab: GITHUB_PAGE, front: true })
+      .catch(() => window.open(GITHUB_PAGE, '_blank'));
+  }
+
   // !fast is a switch, and the F beside the bar says which way it is.
   function toggleFast() {
     setFast(!fastCommands);
@@ -1738,7 +1752,8 @@
         + 'pages, so the bar will not open on a new tab, the home page, any about: page or '
         + 'addons.mozilla.org. Other keys for the bar: about:addons → ⚙ → Manage Extension '
         + 'Shortcuts.'),
-      make('p', 'note', 'Like UOKey? A star on github.com/Kalatz/UOKey helps other people find it.'),
+      make('p', 'star', `Like UOKey? ${COMMAND_PREFIX}github opens its page, where a star helps `
+        + 'other people find it.'),
     );
   }
 

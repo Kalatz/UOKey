@@ -9,10 +9,10 @@ shows in `about:addons`.
 
 The version put up on addons.mozilla.org, for anyone to find and install.
 
-**A word about the repository.** The end of `!help` says that a star on
-github.com/Kalatz/UOKey helps other people find UOKey, and Preferences has a **Star UOKey on
-GitHub** button that opens it. Nothing opens on install or update, and the bar says nothing about
-it anywhere else. Everything else is 1.4.0 as it was.
+**`!github`, or `!g`, opens UOKey's page on GitHub**, in a new tab beside the one you are on,
+where a star helps other people find it. The end of `!help` says so in orange, and Preferences
+has a **Star UOKey on GitHub** button that opens the same page. Nothing opens on install or
+update, and the bar says nothing about it anywhere else. Everything else is 1.4.0 as it was.
 
 ---
 
