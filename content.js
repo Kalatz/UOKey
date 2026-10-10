@@ -98,8 +98,8 @@
   const CLOSED_STATES = new Set(['closed', 'collapsed', 'hidden']);
   // The old numbers of the keys UOKey presses for the page; plenty of pages still read them.
   const KEY_NUMBERS = { Enter: 13, Escape: 27, ArrowLeft: 37, ArrowRight: 39, ArrowDown: 40 };
-  // Each command also has a letter: !s and Enter is !short. With !fast on, the letter alone is
-  // the whole command and no Enter is needed. No two commands share one.
+  // Each command but !github also has a letter: !s and Enter is !short. With !fast on, the
+  // letter alone is the whole command and no Enter is needed. No two commands share one.
   const COMMANDS = [
     { name: 'help', letter: 'h', summary: 'what UOKey does, and every key it uses', fill: fillHelp },
     { name: 'back',
@@ -127,7 +127,6 @@
       summary: 'a command\'s letter runs it straight away, with no Enter; again to stop',
       run: toggleFast },
     { name: 'github',
-      letter: 'g',
       summary: 'open UOKey\'s page on GitHub, where a star helps other people find it',
       run: openGitHub },
   ];
@@ -1702,10 +1701,16 @@
   }
 
   // Each command by its name and then its letter, the way the keys are listed: Tab, then ↓.
+  // The tab numbers come after the commands with a letter, and those with none come last.
   function commandRows() {
+    const row = (c) => [
+      `${COMMAND_PREFIX}${c.name}${c.letter ? `  ${COMMAND_PREFIX}${c.letter}` : ''}`,
+      c.summary,
+    ];
     return rows([
-      ...COMMANDS.map((c) => [`${COMMAND_PREFIX}${c.name}  ${COMMAND_PREFIX}${c.letter}`, c.summary]),
+      ...COMMANDS.filter((c) => c.letter).map(row),
       [`${COMMAND_PREFIX}1 … ${COMMAND_PREFIX}9`, 'go to that tab in this window, counting from the left'],
+      ...COMMANDS.filter((c) => !c.letter).map(row),
     ]);
   }
 

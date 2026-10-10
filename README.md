@@ -60,7 +60,8 @@ the hand cursor counts as clickable, which is how most of the web builds a butto
 ## Commands
 
 Anything typed starting with `!` is a command for UOKey rather than text to look for. Type `!` on
-its own to see the list. Every command also has a letter: `!s` and <kbd>Enter</kbd> is `!short`.
+its own to see the list. Every command but `!github` also has a letter: `!s` and <kbd>Enter</kbd>
+is `!short`.
 
 | Command | Letter | What it does |
 | --- | --- | --- |
@@ -72,7 +73,7 @@ its own to see the list. Every command also has a letter: `!s` and <kbd>Enter</k
 | `!last` | `!l` | go back to the tab you were on before this one |
 | `!1` … `!9` | | go to that tab in this window |
 | `!fast` | `!f` | run a command by its letter alone, with no Enter |
-| `!github` | `!g` | open UOKey's page on GitHub |
+| `!github` | | open UOKey's page on GitHub |
 
 **`!back`** presses <kbd>Esc</kbd> in the page itself, which shuts the menu, submenu or dialog
 the page has open, and leaves the bar where it was. <kbd>Esc</kbd> on its own is the bar's: it
