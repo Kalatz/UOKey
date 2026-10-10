@@ -24,6 +24,7 @@
   code { background: var(--line); color: var(--text); }
   h1.next { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
   label { display: flex; gap: 8px; align-items: baseline; margin: 0 0 6px; cursor: pointer; }
+  p b { color: var(--text); font-weight: 600; }
   input[type="checkbox"] { accent-color: var(--accent); }
 </style>
 </head>
@@ -34,6 +35,15 @@
     you have allowed.</p>
   <p id="state">Checking…</p>
   <button id="grant" hidden>Allow UOKey on all sites</button>
+
+  <h1 class="next">What else Firefox lets it do</h1>
+  <p><b>Read and modify bookmarks</b> is for <code>!marks</code>, which searches them. UOKey only
+    reads them and never changes one.</p>
+  <p><b>Access browser tabs</b> is for <code>!tabs</code>, which searches your open tabs by title
+    and address, and for the site icons <code>!marks</code> and <code>!tabs</code> show.</p>
+  <p><b>Storage</b>, which Firefox does not ask about, keeps those icons, whether
+    <code>!fast</code> is on and, until Firefox closes, whether the bar is on and the order you
+    used your tabs in. Nothing UOKey reads is sent anywhere.</p>
 
   <h1 class="next">Commands</h1>
   <label><input type="checkbox" id="fast"> Run a command by its letter alone, with no Enter</label>

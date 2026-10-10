@@ -11,9 +11,16 @@ The version put up on addons.mozilla.org, for anyone to find and install.
 
 **`!github` opens UOKey's page on GitHub**, in a new tab beside the one you are on, where a
 star helps other people find it. It has no letter, and comes last in the list of commands. The
-end of `!help` says so in orange, and Preferences
-has a **Star UOKey on GitHub** button that opens the same page. Nothing opens on install or
-update, and the bar says nothing about it anywhere else. Everything else is 1.4.0 as it was.
+end of `!help` says so in orange, and Preferences has a **Star UOKey on GitHub** button that
+opens the same page. Nothing opens on install or update, and the bar says nothing about it
+anywhere else.
+
+**Preferences says what each permission is for.** Below the switch for running on the pages you
+visit, it now goes through the others Firefox asks for, bookmarks for `!marks` and tabs for
+`!tabs` and the site icons, and what UOKey keeps in storage. `about:addons` links to the GitHub
+page as UOKey's homepage.
+
+Everything else is 1.4.0 as it was.
 
 ---
 
