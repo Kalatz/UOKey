@@ -5,6 +5,14 @@ shows in `about:addons`.
 
 ---
 
+## 1.6.1 - 18 October 2026
+
+1.6.0 under a new number, and the one put up on addons.mozilla.org for anyone to find and
+install. 1.6.0 went up to be signed for self-distribution rather than listed, and
+addons.mozilla.org never takes the same number twice.
+
+---
+
 ## 1.6.0 - 18 October 2026
 
 Built on 1.4.2. 1.5.1 was a separate test build, and its `!copy` and `!video` are not in this
