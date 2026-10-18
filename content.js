@@ -559,18 +559,30 @@
     .catch(() => { /* no answer: the bar stays shut until it is asked for */ });
 
   // Only the page has a bar to type commands into, so only the page needs to know the settings.
+  //
+  // Firefox says when one changes, but not to a page that loaded while UOKey itself was still
+  // starting, which never hears of a change at all. So they are read again whenever the page
+  // comes back into view as well, which is the soonest a change made in another tab or in
+  // Preferences could matter here.
   if (!inFrame) {
+    readSettings();
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) readSettings();
+    });
+    browser.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local') return;
+      if (FAST_STORE in changes) setFast(changes[FAST_STORE].newValue === true);
+      if (HINTS_STORE in changes) showHints = changes[HINTS_STORE].newValue !== false;
+    });
+  }
+
+  function readSettings() {
     browser.storage.local.get([FAST_STORE, HINTS_STORE])
       .then((kept) => {
         setFast(kept[FAST_STORE] === true);
         showHints = kept[HINTS_STORE] !== false;
       })
       .catch(() => { /* storage is off: the settings stay as they are while the page lasts */ });
-    browser.storage.onChanged.addListener((changes, area) => {
-      if (area !== 'local') return;
-      if (FAST_STORE in changes) setFast(changes[FAST_STORE].newValue === true);
-      if (HINTS_STORE in changes) showHints = changes[HINTS_STORE].newValue !== false;
-    });
   }
 
   function setFast(on) {
