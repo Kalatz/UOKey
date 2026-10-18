@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UOKey",
-  "version": "1.4.2",
+  "version": "1.6.0",
   "description": "Use Only Keyboard: press Ctrl+Space, type the text of a link, button or field, then press Enter to click it.",
   "homepage_url": "https://github.com/Kalatz/UOKey",
   "permissions": ["bookmarks", "storage", "tabs"],

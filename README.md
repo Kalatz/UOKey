@@ -10,7 +10,7 @@ or field says, and press Enter to click it.
 <a href="https://addons.mozilla.org/firefox/addon/uokey/"><img src="images/get-the-addon.svg" alt="Get the add-on for Firefox" height="58"></a>
 
 [![Firefox 142+](https://img.shields.io/badge/Firefox-142%2B-ff701e?logo=firefoxbrowser&logoColor=white)](https://www.mozilla.org/firefox/)
-[![Version 1.4.2](https://img.shields.io/badge/version-1.4.2-000033)](CHANGELOG.md)
+[![Version 1.6.0](https://img.shields.io/badge/version-1.6.0-000033)](CHANGELOG.md)
 [![Data collected: none](https://img.shields.io/badge/data%20collected-none-2ea043)](#permissions)
 [![GitHub stars](https://img.shields.io/github/stars/Kalatz/UOKey?style=flat&logo=github&label=stars)](https://github.com/Kalatz/UOKey/stargazers)
 

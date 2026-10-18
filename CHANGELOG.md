@@ -5,6 +5,40 @@ shows in `about:addons`.
 
 ---
 
+## 1.6.0 - 18 October 2026
+
+Built on 1.4.2. 1.5.1 was a separate test build, and its `!copy` and `!video` are not in this
+version; `;up` does what its `!up` did.
+
+**Commands start with `;` instead of `!`**, which is under the little finger on the home row.
+`!` is ordinary text to find again, and `!short` is `;shortcut`, still `;s`.
+
+**`;d0` to `;dz` unload a tab** to free its memory, like Firefox's right-click → **Unload Tab**.
+`;d0` is the tab you are on; `1` to `9` and then `a` to `z` count along the tab strip. The tab's
+icon fades to grey first, in some twenty-five even steps over three seconds. This is the Tab
+Unloader add-on folded in, and it needs no new permission and fetches nothing.
+
+**`;` lists this window's tabs with their keys**, under the commands, so there is no counting.
+Click one to go there, or after `;d`, to unload it.
+
+**`;reload`, or `;r`**, works the hint keys and the tabs' keys out again.
+
+**`;up`, or `;u`**, goes to the top of the page, or of the panel in the middle of the screen on a
+site that scrolls one of those instead.
+
+**`;;` is the settings**, always listed with which way each is set:
+
+- `;;hints` turns off everything that comes up while a command is typed. `;help` and `;;` still
+  show theirs.
+- `;;fast` is the old `!fast`. Its **F** now sits inside the box, at the right-hand end.
+- `;;settings` opens Preferences, which has both switches as well.
+
+**Fixes.** A setting changed in one tab reaches every other tab, including one that loaded while
+UOKey was still starting and so never heard of the change. The panel above the bar has a dark
+scrollbar to match it.
+
+---
+
 ## 1.4.2 - 10 October 2026
 
 1.4.1 under a new number, and the one put up on addons.mozilla.org for anyone to find and
