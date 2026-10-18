@@ -3,16 +3,20 @@
  * content script never starts, so there is nothing on the page able to say why nothing happens.
  * This page is that surface: it says which way it stands and asks for the permission.
  *
- * It also has the !fast switch, for anyone who looks for settings here rather than in the bar.
+ * It also has the settings, ;;hints and ;;fast, for anyone who looks for them here rather
+ * than in the bar.
  */
 (() => {
   'use strict';
 
   const EVERYWHERE = { origins: ['<all_urls>'] };
-  const FAST_STORE = 'fastCommands'; // the same place content.js keeps !fast
+  // The same places content.js keeps them, and whether a box is ticked when nothing is kept yet.
+  const SWITCHES = [
+    { box: document.getElementById('fast'), store: 'fastCommands', unset: false },
+    { box: document.getElementById('hints'), store: 'showHints', unset: true },
+  ];
   const state = document.getElementById('state');
   const grant = document.getElementById('grant');
-  const fast = document.getElementById('fast');
 
   async function show() {
     let allowed = false;
@@ -44,14 +48,20 @@
   browser.permissions.onRemoved?.addListener(show);
   show();
 
-  browser.storage.local.get(FAST_STORE)
-    .then((kept) => { fast.checked = kept[FAST_STORE] === true; })
-    .catch(() => { fast.disabled = true; }); // storage is off: there is nowhere to keep it
-  fast.addEventListener('change', () => {
-    browser.storage.local.set({ [FAST_STORE]: fast.checked }).catch(() => { /* see above */ });
-  });
-  // Typing !fast in the bar while this page is open turns the box with it.
+  const ticked = (s, value) => (value === undefined ? s.unset : value === true);
+  for (const s of SWITCHES) {
+    browser.storage.local.get(s.store)
+      .then((kept) => { s.box.checked = ticked(s, kept[s.store]); })
+      .catch(() => { s.box.disabled = true; }); // storage is off: there is nowhere to keep it
+    s.box.addEventListener('change', () => {
+      browser.storage.local.set({ [s.store]: s.box.checked }).catch(() => { /* see above */ });
+    });
+  }
+  // Typing ;;fast or ;;hints in the bar while this page is open turns the box with it.
   browser.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && FAST_STORE in changes) fast.checked = changes[FAST_STORE].newValue === true;
+    if (area !== 'local') return;
+    for (const s of SWITCHES) {
+      if (s.store in changes) s.box.checked = ticked(s, changes[s.store].newValue);
+    }
   });
 })();

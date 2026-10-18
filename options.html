@@ -37,21 +37,27 @@
   <button id="grant" hidden>Allow UOKey on all sites</button>
 
   <h1 class="next">What else Firefox lets it do</h1>
-  <p><b>Read and modify bookmarks</b> is for <code>!marks</code>, which searches them. UOKey only
+  <p><b>Read and modify bookmarks</b> is for <code>;marks</code>, which searches them. UOKey only
     reads them and never changes one.</p>
-  <p><b>Access browser tabs</b> is for <code>!tabs</code>, which searches your open tabs by title
-    and address, and for the site icons <code>!marks</code> and <code>!tabs</code> show.</p>
-  <p><b>Storage</b>, which Firefox does not ask about, keeps those icons, whether
-    <code>!fast</code> is on and, until Firefox closes, whether the bar is on and the order you
-    used your tabs in. Nothing UOKey reads is sent anywhere.</p>
+  <p><b>Access browser tabs</b> is for <code>;tabs</code>, which searches your open tabs by title
+    and address; for the numbered tabs <code>;</code> lists, and <code>;d0</code> …
+    <code>;dz</code>, which unloads them; and for the site icons all of these show.</p>
+  <p><b>Storage</b>, which Firefox does not ask about, keeps those icons, the two settings below
+    and, until Firefox closes, whether the bar is on and the order you used your tabs in.
+    Nothing UOKey reads is sent anywhere.</p>
 
-  <h1 class="next">Commands</h1>
+  <h1 class="next">Settings</h1>
+  <label><input type="checkbox" id="hints"> Show the commands, and this window's tabs with their
+    keys, as <code>;</code> is typed</label>
+  <p>Off, nothing comes up while a command is typed: only <code>;help</code> and <code>;;</code>
+    put anything up. The same switch as typing <code>;;hints</code> in the bar.</p>
   <label><input type="checkbox" id="fast"> Run a command by its letter alone, with no Enter</label>
-  <p><code>!s</code> is <code>!short</code> as soon as it is typed, <code>!h</code> is
-    <code>!help</code>, and so on. The same switch as typing <code>!fast</code> in the bar.</p>
+  <p><code>;s</code> is <code>;shortcut</code> as soon as it is typed, <code>;h</code> is
+    <code>;help</code>, and so on. The same switch as typing <code>;;fast</code> in the bar.</p>
+  <p><code>;;</code> in the bar lists both, and <code>;;settings</code> opens this page.</p>
 
   <h1 class="next">Like UOKey?</h1>
-  <p>A star on GitHub helps other people find it. <code>!github</code> in the bar opens the
+  <p>A star on GitHub helps other people find it. <code>;github</code> in the bar opens the
     same page.</p>
   <a class="button" href="https://github.com/Kalatz/UOKey" target="_blank" rel="noopener">Star UOKey on GitHub</a>
 </body>
